@@ -1,1 +1,0 @@
-{"tag_name":"v1.0.3","name":"v1.0.3","body":"🐛 修复：每周例行任务完成后永不生成下一轮\n🐛 修复：AI carryover操作后视图不跳转下周\n🐛 修复：7天模式下week-range始终显示5天范围\n🐛 修复：dayMap缺sat/sun导致误判过期\n🐛 修复：导入按钮隐藏、导入丢失字段\n🐛 修复：applyOps遗漏repeat字段\n🐛 修复：_nextCreated不持久化导致重复生成\n🐛 修复：cancel后undoStack残留快照\n✨ 手动完成重复任务自动生成下一轮","draft":false,"prerelease":false}
