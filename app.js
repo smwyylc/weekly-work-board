@@ -39,17 +39,13 @@ function render(){
   const priOrder={urgent:0,normal:1,low:2};
   const statusOrder={doing:0,todo:1,blocked:2,done:3};
   const sortTasks=(a,b)=>{
-    // 未完成优先（doing > todo > blocked > done）
+    // 1. 未完成优先（doing > todo > blocked > done）
     const sa=statusOrder[a.status]??99,sb=statusOrder[b.status]??99;
     if(sa!==sb)return sa-sb;
-    // 同状态内按优先级
+    // 2. 同状态内按优先级
     const pa=priOrder[a.priority]||1,pb=priOrder[b.priority]||1;
     if(pa!==pb)return pa-pb;
-    // 有提醒的排前面
-    const ra=a.remindAt?1:0,rb=b.remindAt?1:0;
-    if(ra!==rb)return rb-ra;
-    // 提醒时间早的排前面
-    if(a.remindAt&&b.remindAt&&a.remindAt!==b.remindAt)return a.remindAt<b.remindAt?-1:1;
+    // 3. 同状态+优先级内按手动拖拽顺序或创建时间
     const ao=a.order||a.createdAt||0,bo=b.order||b.createdAt||0;
     return ao-bo;
   };
