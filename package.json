@@ -1,5 +1,5 @@
 {
-  "name": "weekly-work-board",
+  "name": "wip-board",
   "version": "1.0.0",
   "description": "Work In Progress — 本周工作安排",
   "main": "main.js",
@@ -9,7 +9,7 @@
     "dist": "electron-builder"
   },
   "build": {
-    "appId": "com.workbuddy.wipboard",
+    "appId": "com.workbuddy.wip",
     "productName": "Work In Progress",
     "copyright": "Copyright © 2026",
     "directories": {
