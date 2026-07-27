@@ -149,3 +149,49 @@ ipcMain.handle('show-notification', (event, { title, body }) => {
   }
   return false;
 });
+
+// 检查更新：从 GitHub Releases 拉取最新安装包
+ipcMain.handle('check-update', async () => {
+  try {
+    const resp = await fetch('https://api.github.com/repos/smwyylc/weekly-work-board/releases/latest', {
+      headers: { 'Accept': 'application/vnd.github+json' },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!resp.ok) return { ok: false, error: '无法获取版本信息' };
+    const data = await resp.json();
+    const tag = data.tag_name || '';
+    const asset = (data.assets || []).find(a => a.name.endsWith('.exe') && a.name.includes('Setup'));
+    if (!asset) return { ok: false, error: '未找到安装包' };
+    return {
+      ok: true, version: tag,
+      downloadUrl: asset.browser_download_url,
+      size: asset.size,
+      body: (data.body || '').slice(0, 200)
+    };
+  } catch (e) {
+    return { ok: false, error: e.message || '网络错误' };
+  }
+});
+
+ipcMain.handle('download-update', async (event, url) => {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('下载失败');
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    const tmpPath = require('path').join(require('os').tmpdir(), 'WeeklyWorkBoard_Setup.exe');
+    require('fs').writeFileSync(tmpPath, buffer);
+    event.sender.send('update-downloaded', tmpPath);
+    return { ok: true, path: tmpPath };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('install-update', (event, path) => {
+  try {
+    require('child_process').exec('start "" "' + path + '"');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});

@@ -7,6 +7,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoStart: (on) => ipcRenderer.invoke('set-autostart', on),
   // 系统通知
   showNotification: (args) => ipcRenderer.invoke('show-notification', args),
+  // 检查更新
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
+  downloadUpdate: (url) => ipcRenderer.invoke('download-update', url),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_, p) => cb(p)),
+  installUpdate: (path) => ipcRenderer.invoke('install-update', path),
   // 流式输出
   callAIStream: (payload) => ipcRenderer.invoke('call-ai-stream', payload),
   onAIChunk: (cb) => ipcRenderer.on('ai-stream-chunk', (_, c) => cb(c)),

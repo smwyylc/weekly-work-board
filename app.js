@@ -104,7 +104,7 @@ function render(){
   });
 
   // 顶栏
-  const end=addDays(viewWeekStart,4);
+  const end=addDays(viewWeekStart,weekMode===7?6:4);
   const isThis=weekKey(new Date())===wk;
   document.getElementById('week-label').textContent=isThis?'本周':(wk>weekKey(new Date())?'未来周':'过往周');
   document.getElementById('week-range').textContent=`${viewWeekStart.getMonth()+1}/${viewWeekStart.getDate()} - ${end.getMonth()+1}/${end.getDate()}`;
@@ -126,10 +126,11 @@ function taskHtml(t,q){
   const resTag=t.day===null?`<span class="t-tag">残留</span>`:'';
   const remindTag=t.remindAt?`<span class="t-remind">⏰ ${t.remindAt}</span>`:'';
   const repeatIcon=t.repeat?`<span class="t-repeat">↻ ${{'daily':'每日',mon:'每周一',tue:'每周二',wed:'每周三',thu:'每周四',fri:'每周五'}[t.repeat]||t.repeat}</span>`:'';
+  const notesIcon=t.notes?`<span class="t-notes-icon">📎</span>`:'';
   return `<div class="task ${t.status==='done'?'done':''}" draggable="true" data-id="${t.id}" style="border-left-color:${stColor(t.status)}" data-action="edit" data-task-id="${t.id}">
     <button class="del" data-action="delete" data-task-id="${t.id}">✕</button>
     ${resTag}
-    <div class="t-content">${hl(esc(t.content),q)}</div>
+    <div class="t-content">${hl(esc(t.content),q)}${notesIcon}</div>
     ${people?`<div class="t-people">${people}</div>`:''}
     ${repeatIcon?`<div class="t-repeat-row">${repeatIcon}</div>`:''}
     ${remindTag?`<div class="t-remind-row">${remindTag}</div>`:''}
@@ -166,10 +167,10 @@ function cycleStatus(id){
 function changeWeek(d){viewWeekStart=getMonday(addDays(viewWeekStart,d*7));render()}
 
 function carryOverToNextWeek(){
-  saveSnapshot();
   const wk=weekKey(viewWeekStart);
   const undone=tasks.filter(t=>t.weekKey===wk&&t.status!=='done');
   if(!confirm(`确认进入下周？\n\n本周未完成任务 ${undone.length} 个将自动滚入下周「残留任务」。`))return;
+  saveSnapshot();
   const nk=weekKey(addDays(viewWeekStart,7));
   let n=0;
   tasks.forEach(t=>{if(t.weekKey===wk&&t.status!=='done'){t.weekKey=nk;t.day=null;n++}});
@@ -197,6 +198,7 @@ function openTaskModal(day,id){
       document.getElementById('f-people').value='';
       document.getElementById('f-remind').value='';
       document.getElementById('f-repeat').value='';
+      document.getElementById('f-notes').value='';
       pushSysMsg('⚠️ 该任务已不存在，已切换为新建模式');
     }else{
       document.getElementById('f-content').value=t.content;
@@ -205,6 +207,7 @@ function openTaskModal(day,id){
       document.getElementById('f-people').value=(t.people||[]).join(', ');
       document.getElementById('f-remind').value=t.remindAt||'';
       document.getElementById('f-repeat').value=t.repeat||'';
+      document.getElementById('f-notes').value=t.notes||'';
     }
   }else{
     document.getElementById('f-content').value='';
@@ -213,6 +216,7 @@ function openTaskModal(day,id){
     document.getElementById('f-people').value='';
     document.getElementById('f-remind').value='';
     document.getElementById('f-repeat').value='';
+    document.getElementById('f-notes').value='';
   }
   document.getElementById('task-overlay').classList.add('show');
   setTimeout(()=>document.getElementById('f-content').focus(),80);
@@ -225,14 +229,15 @@ function saveTask(){
   const day=document.getElementById('f-day').value||null;
   const status=document.getElementById('f-status').value;
   const people=document.getElementById('f-people').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+  const notes=document.getElementById('f-notes').value.trim()||null;
   const remindAt=document.getElementById('f-remind').value||null;
   const repeat=document.getElementById('f-repeat').value||null;
   if(editingId){
     const t=tasks.find(x=>x.id===editingId);
-    Object.assign(t,{content,day,status,people,remindAt,repeat});
+    Object.assign(t,{content,day,status,people,remindAt,repeat,notes});
     if(day)t.weekKey=weekKey(viewWeekStart);
   }else{
-    tasks.push({id:uid(),content,day,status,people,remindAt,repeat,order:Date.now(),weekKey:weekKey(viewWeekStart),createdAt:Date.now()});
+    tasks.push({id:uid(),content,day,status,people,remindAt,repeat,notes,order:Date.now(),weekKey:weekKey(viewWeekStart),createdAt:Date.now()});
   }
   save();closeTaskModal();render();
 }
@@ -278,25 +283,56 @@ function importData(){const i=document.createElement('input');i.type='file';i.ac
     content:String(t.content),
     people:Array.isArray(t.people)?t.people.map(String).filter(x=>x):[],
     status:['todo','doing','done','blocked'].includes(t.status)?t.status:'todo',
-    day:['mon','tue','wed','thu','fri'].includes(t.day)?t.day:null,
+    day:getDays().map(d=>d.k).includes(t.day)?t.day:null,
     weekKey:t.weekKey||wk,
     order:Number(t.order)||Date.now(),
-    createdAt:Number(t.createdAt)||Date.now()
+    createdAt:Number(t.createdAt)||Date.now(),
+    remindAt:t.remindAt||null,
+    repeat:t.repeat||null,
+    notes:t.notes||null
   }));
   if(cleaned.length===0){alert('文件中没有有效任务');return}
   tasks=cleaned;save();render();pushSysMsg('导入成功，共 '+cleaned.length+' 项任务');
 };r.onerror=()=>alert('读取文件失败');r.readAsText(f);i.click()}}
 
 // ============ AI 对话 ============
-function mdToHtml(s){
+function mdToHtml(s,showOps){
   if(!s)return '';
-  // 转义 HTML 特殊字符，但保留表格和代码标记
+  // 先提取代码块，避免被转义破坏
+  const blocks=[];
+  s=s.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{
+    const idx=blocks.length;
+    blocks.push({lang,code:code.trim()});
+    return '@@CODE'+idx+'@@';
+  });
+  // 再提取 JSON 操作块（用于显示按钮）
+  const ops=[];
+  s=s.replace(/```json\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```/g,(_,json)=>{
+    try{
+      const parsed=JSON.parse(json);
+      if(Array.isArray(parsed)){ops.push(...parsed);return ''}
+    }catch(e){}
+    return _;
+  });
+  s=s.replace(/```json\s*(\{[\s\S]*?\})\s*```/g,(_,json)=>{
+    try{
+      const parsed=JSON.parse(json);
+      if(parsed.operations&&Array.isArray(parsed.operations)){ops.push(...parsed.operations);return ''}
+    }catch(e){}
+    return _;
+  });
+  // 剩余 ```json 块也尝试提取
+  s=s.replace(/```json[\s\S]*?```/g,'');
+  // 转义 HTML
   s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // 代码块（必须在行内代码之前处理）
-  s=s.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,__,c)=>'<pre><code>'+c.trim()+'</code></pre>');
+  // 还原代码块
+  s=s.replace(/@@CODE(\d+)@@/g,(_,idx)=>{
+    const b=blocks[+idx];
+    return '<pre><code'+(b.lang?' class="lang-'+b.lang+'"':'')+'>'+b.code+'</code></pre>';
+  });
   // 行内代码
   s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
-  // 表格：| a | b |\n| --- | --- |\n| c | d |
+  // 表格
   s=s.replace(/^\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)*)/gm,(_,h,b)=>{
     const hs=h.split('|').map(x=>x.trim()).filter(Boolean);
     const rows=b.trim().split('\n').map(r=>r.split('|').map(x=>x.trim()).filter(Boolean));
@@ -308,29 +344,36 @@ function mdToHtml(s){
   s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
   // 斜体
   s=s.replace(/\*(.+?)\*/g,'<em>$1</em>');
-  // 列表：用占位符先提取连续的列表项，避免 <li> 被重复匹配
-  // 无序列表
+  // 列表
   s=s.replace(/(^|\n)((?:- .+(?:\n|$))+)/g,(m,pre,block)=>{
     const items=block.trim().split('\n').map(x=>'<li>'+x.replace(/^- /,'')+'</li>').join('');
     return pre+'@@UL@@'+items+'@@/UL@@';
   });
-  // 有序列表
   s=s.replace(/(^|\n)((?:\d+\. .+(?:\n|$))+)/g,(m,pre,block)=>{
     const items=block.trim().split('\n').map(x=>'<li>'+x.replace(/^\d+\. /,'')+'</li>').join('');
     return pre+'@@OL@@'+items+'@@/OL@@';
   });
-  // 还原列表占位符
   s=s.replace(/@@UL@@([\s\S]*?)@@\/UL@@/g,'<ul>$1</ul>');
   s=s.replace(/@@OL@@([\s\S]*?)@@\/OL@@/g,'<ol>$1</ol>');
   // 链接
-  s=s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,text,url)=>{const safe=url.startsWith('http://')||url.startsWith('https://');return safe?'<a href="'+url+'" target="_blank" rel="noopener">'+text+'</a>':text+'（'+url+'）'});
+  s=s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,text,url)=>{
+    const safe=url.startsWith('http://')||url.startsWith('https://');
+    return safe?'<a href="'+url+'" target="_blank" rel="noopener">'+text+'</a>':text+'（'+url+'）'
+  });
   // 换行
   s=s.replace(/\n/g,'<br>');
-  // 清理占位符残留的换行
   s=s.replace(/(<ul>|<ol>)<br>/g,'$1').replace(/<br>(<\/ul>|<\/ol>)/g,'$1');
+  // 如果开启了操作按钮模式，且在最终回复中检测到有效操作，生成执行按钮
+  if(showOps&&ops.length){
+    s+='<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
+    s+='<button class="ops-btn" data-ops=\''+esc(JSON.stringify(ops))+'\' style="background:var(--primary);color:#fff;border:none;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✅ 执行 '+ops.length+' 项操作</button>';
+    s+='<span style="font-size:12px;color:var(--text2);align-self:center">点击后对看板生效</span>';
+    s+='</div>';
+  }
   return s;
 }
-function pushMsg(role,text){const c=document.getElementById('chat');const d=document.createElement('div');d.className='msg '+role;if(role==='ai')d.innerHTML=mdToHtml(text);else d.textContent=text;c.appendChild(d);c.scrollTop=c.scrollHeight;return d}
+function extractOpsFromHtml(html){try{const m=html.match(/data-ops='([^']+)'/);return m?JSON.parse(m[1]):[]}catch(e){return[]}}
+function pushMsg(role,text){const c=document.getElementById('chat');const d=document.createElement('div');d.className='msg '+role;if(role==='ai')d.innerHTML=mdToHtml(text,true);else d.textContent=text;c.appendChild(d);c.scrollTop=c.scrollHeight;return d}
 function pushSysMsg(text){const c=document.getElementById('chat');const d=document.createElement('div');d.className='msg sys';d.innerHTML=mdToHtml(text);c.appendChild(d);c.scrollTop=c.scrollHeight}
 function clearChat(){chatHistory=[];document.getElementById('chat').innerHTML='';pushSysMsg('已新建对话');save()}
 function restoreChat(){const el=document.getElementById('chat');if(!el)return;el.innerHTML='';chatHistory.forEach(m=>{const d=document.createElement('div');d.className='msg '+(m.role==='user'?'user':m.role==='assistant'?'ai':'sys');if(m.role==='user')d.textContent=m.content||'';else d.innerHTML=mdToHtml(m.content||'');el.appendChild(d)});el.scrollTop=el.scrollHeight}
@@ -372,9 +415,9 @@ ${getVisibleTasksJSON()}
 可用 day：mon(周一) tue(周二) wed(周三) thu(周四) fri(周五) sat(周六) sun(周日)，null（残留/未排期）。当前设置为 ${weekMode} 天工作周。
 
 当用户增删改任务时，在回复末尾附加 \`\`\`json 代码块，包含 operations 数组：
-- {"action":"add","content":"...","people":["..."],"status":"todo|doing|done|blocked","day":"mon"|...|null,"repeat?":"daily|mon|tue|wed|thu|fri"}
+- {"action":"add","content":"...","people":["..."],"status":"todo|doing|done|blocked","day":"mon"|...|null,"repeat?":"daily|mon|tue|wed|thu|fri","remindAt?":"HH:MM","notes?":"..."}
 - {"action":"move","taskId":"...","day":"mon"|...|null}
-- {"action":"edit","taskId":"...","content?":"...","people?":[...],"day?":"...","repeat?":"..."}
+- {"action":"edit","taskId":"...","content?":"...","people?":[...],"day?":"...","repeat?":"...","remindAt?":"HH:MM或null","notes?":"..."}
 - {"action":"status","taskId":"...","status":"done"}
 - {"action":"delete","taskId":"..."}
 - {"action":"carryover"}
@@ -385,7 +428,8 @@ ${getVisibleTasksJSON()}
 3. 直接执行，禁止追问。不知道的就用常识推断（没说日期就今天，没状态就 todo）。
 4. 用中文简洁回复，不加表情符号。
 5. 用户说"这个/那个/它"等代词时，根据聊天历史判断是哪个任务，不要猜错。
-6. 当有多个任务名称相似时（如"外部账户管理系统sow"和"会议室mcpserver的sow"），务必通过完整任务内容精确匹配，不能混淆。用户说的"那个sow"是指他刚提到的那个任务，不是别的。`;
+6. 当有多个任务名称相似时（如"外部账户管理系统sow"和"会议室mcpserver的sow"），务必通过完整任务内容精确匹配，不能混淆。用户说的"那个sow"是指他刚提到的那个任务，不是别的。
+7. 用户说"提醒我"或"到时提醒"时，通过 remindAt 字段设置提醒时间（格式 HH:MM，如14:25）。应用支持到点弹出系统通知。不要说你做不到，直接用 edit 设置 remindAt 即可。`;
 }
 async function sendChat(){
   const el=document.getElementById('ai-text');
@@ -432,20 +476,9 @@ async function sendChat(){
       if(!aiBubble.parentNode){document.getElementById('chat').appendChild(aiBubble)}
       // 最终显示清理 JSON 后的干净回复
       const clean=stripJsonBlock(reply);
-      aiBubble.innerHTML=mdToHtml(clean);
+      aiBubble.innerHTML=mdToHtml(clean,true);
       chatHistory.push({role:'assistant',content:reply});
-      const ops=extractOps(reply);
-      const opCount=ops.length;
-      if(opCount){
-        // 替换加载标签为操作状态
-        removeToolTags();
-        addToolTag('🔄 正在执行 '+opCount+' 项操作...');
-        const n=applyOps(ops);
-        removeToolTags();
-        if(n)pushSysMsg('✅ 已调整 '+n+' 项任务');
-      }else{
-        removeToolTags();
-      }
+      removeToolTags();
       sendBtn.disabled=false;
     });
     window.electronAPI.onAIError((e)=>{
@@ -485,7 +518,7 @@ async function sendChat(){
 // ============ 周报 ============
 function generateReport(){
   const wk=weekKey(viewWeekStart);
-  const end=addDays(viewWeekStart,4);
+  const end=addDays(viewWeekStart,weekMode===7?6:4);
   const weekStr=`${viewWeekStart.getMonth()+1}/${viewWeekStart.getDate()} - ${end.getMonth()+1}/${end.getDate()}`;
   const all=tasks.filter(t=>t.weekKey===wk);
   const done=all.filter(t=>t.status==='done');
@@ -501,6 +534,15 @@ function generateReport(){
     if(list.length)daySummary+=`${byDay[d.k]||d.k}：${list.map(t=>t.content+(t.status!=='todo'?'('+STATUS[t.status].n+')':'')).join('、')}\n`;
   });
   const text=`请帮我生成一份本周（${weekStr}）的工作周报，按日期列出已完成和进行中的任务，最后给出总结和建议。\n\n任务统计：\n- 已完成：${done.length}项\n- 进行中：${doing.length}项\n- 待开始：${todo.length}项\n- 阻塞：${blocked.length}项\n- 残留任务：${residual.length}项\n\n详细任务：\n${daySummary||'（本周暂无任务安排）'}\n\n要求：用中文简洁格式，分「本周完成」「进行中」「下周计划」三段，不加json。`;
+  // 弹出编辑框，用户可修改提示词
+  document.getElementById('report-text').value=text;
+  document.getElementById('report-overlay').classList.add('show');
+  setTimeout(()=>document.getElementById('report-text').focus(),80);
+}
+function sendReport(){
+  const text=document.getElementById('report-text').value.trim();
+  if(!text)return;
+  document.getElementById('report-overlay').classList.remove('show');
   const el=document.getElementById('ai-text');
   el.value=text;
   sendChat();
@@ -509,7 +551,7 @@ function generateReport(){
 function getVisibleTasksJSON(){
   const wk=weekKey(viewWeekStart);
   const visible=tasks.filter(t=>(t.weekKey===wk&&t.day!==null)||(t.day===null&&t.status!=='done'&&t.weekKey<=wk))
-    .map(t=>({id:t.id,content:t.content,people:t.people,status:t.status,day:t.day,weekKey:t.weekKey}));
+    .map(t=>({id:t.id,content:t.content,people:t.people,status:t.status,day:t.day,weekKey:t.weekKey,remindAt:t.remindAt||null,repeat:t.repeat||null,notes:t.notes||null}));
   return JSON.stringify(visible,null,2);
 }
 
@@ -530,11 +572,11 @@ function applyOps(ops){
   let n=0;
   ops.forEach(op=>{
     if(op.action==='add'){
-      tasks.push({id:uid(),content:op.content,people:op.people||[],status:op.status||'todo',day:op.day??null,order:Date.now(),weekKey:wk,createdAt:Date.now()});n++;
+      tasks.push({id:uid(),content:op.content,people:op.people||[],status:op.status||'todo',day:op.day??null,remindAt:op.remindAt||null,repeat:op.repeat||null,notes:op.notes||null,order:Date.now(),weekKey:wk,createdAt:Date.now()});n++;
     }else if(op.action==='move'){
       const t=tasks.find(x=>x.id===op.taskId);if(t){if(op.day)t.weekKey=wk;t.day=op.day??null;t.order=Date.now();n++}
     }else if(op.action==='edit'){
-      const t=tasks.find(x=>x.id===op.taskId);if(t){if(op.content!=null)t.content=op.content;if(op.people!=null)t.people=op.people;if(op.day!==undefined){if(op.day)t.weekKey=wk;t.day=op.day??null}t.order=Date.now();n++}
+      const t=tasks.find(x=>x.id===op.taskId);if(t){if(op.content!=null)t.content=op.content;if(op.people!=null)t.people=op.people;if(op.day!==undefined){if(op.day)t.weekKey=wk;t.day=op.day??null}if(op.remindAt!==undefined)t.remindAt=op.remindAt||null;if(op.repeat!==undefined)t.repeat=op.repeat||null;if(op.notes!==undefined)t.notes=op.notes||null;t.order=Date.now();n++}
     }else if(op.action==='status'){
       const t=tasks.find(x=>x.id===op.taskId);if(t){t.status=op.status;n++}
     }else if(op.action==='delete'){
@@ -542,6 +584,7 @@ function applyOps(ops){
     }else if(op.action==='carryover'){
       const nk=weekKey(addDays(viewWeekStart,7));
       tasks.forEach(t=>{if(t.weekKey===wk&&t.status!=='done'){t.weekKey=nk;t.day=null;n++}});
+      viewWeekStart=addDays(viewWeekStart,7);
     }
   });
   if(n)save();
@@ -571,6 +614,8 @@ function bindEvents(){
   document.getElementById('btn-newtask').addEventListener('click',()=>openTaskModal(null));
   document.getElementById('btn-nextweek').addEventListener('click',carryOverToNextWeek);
   document.getElementById('btn-report').addEventListener('click',generateReport);
+  document.querySelector('[data-action="send-report"]').addEventListener('click',sendReport);
+  document.querySelector('[data-close="report-modal"]').addEventListener('click',()=>document.getElementById('report-overlay').classList.remove('show'));
 
   // 搜索框
   const si=document.getElementById('search-input');
@@ -591,9 +636,40 @@ function bindEvents(){
   document.querySelectorAll('[data-close="task-modal"]').forEach(b=>b.addEventListener('click',closeTaskModal));
   document.querySelector('[data-action="save-task"]').addEventListener('click',saveTask);
 
+  // 清空提醒时间
+  const clearBtn=document.getElementById('f-remind-clear');
+  if(clearBtn)clearBtn.addEventListener('click',()=>{document.getElementById('f-remind').value=''});
+
   // 设置弹窗
   document.querySelectorAll('[data-close="set-modal"]').forEach(b=>b.addEventListener('click',closeSettings));
   document.querySelector('[data-action="save-settings"]').addEventListener('click',saveSettings);
+
+  // 检查更新
+  const updateBtn=document.getElementById('btn-check-update');
+  if(updateBtn)updateBtn.addEventListener('click',async ()=>{
+    if(!window.electronAPI||!window.electronAPI.checkUpdate){pushSysMsg('⚠️ 非 Electron 环境，无法检查更新');return}
+    const hint=document.getElementById('update-hint');
+    hint.textContent='正在检查...';
+    updateBtn.disabled=true;
+    const info=await window.electronAPI.checkUpdate();
+    if(!info.ok){
+      hint.textContent=info.error||'检查失败';
+      updateBtn.disabled=false;
+      return;
+    }
+    hint.textContent='发现 '+info.version+'（'+Math.round(info.size/1048576)+'MB）— '+info.body.slice(0,80);
+    updateBtn.textContent='⬇ 下载安装';
+    updateBtn.onclick=async()=>{
+      updateBtn.textContent='下载中...';
+      updateBtn.disabled=true;
+      const res=await window.electronAPI.downloadUpdate(info.downloadUrl);
+      if(!res.ok){hint.textContent=res.error||'下载失败';updateBtn.disabled=false;return}
+      window.electronAPI.onUpdateDownloaded((path)=>{
+        hint.textContent='下载完成，启动安装...';
+        window.electronAPI.installUpdate(path);
+      });
+    };
+  });
 
   // 关于弹窗
   document.querySelector('[data-close="about-modal"]').addEventListener('click',closeAbout);
@@ -636,6 +712,18 @@ function bindEvents(){
       if(e.key==='n'){e.preventDefault();openTaskModal(null)}
       else if(e.key==='f'){e.preventDefault();const el=document.getElementById('search-input');if(el){el.focus();el.select()}}
       else if(e.key==='z'){e.preventDefault();undo()}
+    }
+  });
+
+  // 操作确认按钮（.ops-btn）
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest('.ops-btn');
+    if(!btn)return;
+    const ops=extractOpsFromHtml(btn.outerHTML);
+    if(ops.length){
+      const n=applyOps(ops);
+      btn.replaceWith(document.createTextNode('✅ 已执行'));
+      if(n)pushSysMsg('✅ 已执行 '+n+' 项操作');
     }
   });
 }
@@ -705,15 +793,15 @@ function processRecurring(){
   const wk=weekKey(viewWeekStart);
   const today=new Date();
   const todayKey=['sun','mon','tue','wed','thu','fri','sat'][today.getDay()];
-  const dayMap={mon:'1',tue:'2',wed:'3',thu:'4',fri:'5'};
+  const dayMap={mon:1,tue:2,wed:3,thu:4,fri:5,sat:6,sun:7};
   let changed=false;
   tasks.forEach(t=>{
-    if(!t.repeat || t.status==='done' || t.day===null)return;
+    if(!t.repeat || t.day===null)return;
     // 判断这个任务是否在本次查看的周内需要处理
     if(t.weekKey!==wk)return;
     // 如果任务安排在过去的日期（比如周五是今天，任务在周一且未完成），自动标记已完成并创建下个周期
-    const taskDayIdx=parseInt(dayMap[t.day]||'0');
-    const todayIdx=parseInt(dayMap[todayKey]||'0');
+    const taskDayIdx=dayMap[t.day]||0;
+    const todayIdx=dayMap[todayKey]||0;
     if(t.status!=='done' && todayIdx>taskDayIdx && t.day!==todayKey){
       // 已过期的未完成任务→标记完成
       t.status='done';
@@ -721,24 +809,30 @@ function processRecurring(){
     }
     if(t.status==='done' && !t._nextCreated){
       // 已完成的例行任务→生成下次实例
-      if(t.repeat==='daily'){
-        // 每日：加到明天
-        const tomorrow=new Date(today);tomorrow.setDate(tomorrow.getDate()+1);
-        const tomKey=['sun','mon','tue','wed','thu','fri','sat'][tomorrow.getDay()];
-        if(tomKey!=='sat'&&tomKey!=='sun'){
-          tasks.push({id:uid(),content:t.content,people:[...t.people],status:'todo',day:tomKey,
-            remindAt:t.remindAt,repeat:t.repeat,order:Date.now(),weekKey:weekKey(tomorrow),createdAt:Date.now()});
-          changed=true;
+      const origRepeat=t.repeat;
+      t.repeat=null; // 先清空原任务repeat，防止崩溃导致重启后重复生成
+      if(origRepeat==='daily'){
+        // 每日：加到下一个工作日
+        let next=new Date(today);
+        for(let i=0;i<7;i++){
+          next.setDate(next.getDate()+1);
+          const nk=['sun','mon','tue','wed','thu','fri','sat'][next.getDay()];
+          if(nk!=='sat'&&nk!=='sun'){ // 跳过周末
+            tasks.push({id:uid(),content:t.content,people:[...t.people],status:'todo',day:nk,
+              remindAt:t.remindAt,repeat:origRepeat,order:Date.now(),weekKey:weekKey(next),createdAt:Date.now()});
+            changed=true;
+            break;
+          }
         }
-      }else if(t.repeat==='mon'||t.repeat==='tue'||t.repeat==='wed'||t.repeat==='thu'||t.repeat==='fri'){
+      }else if(origRepeat==='mon'||origRepeat==='tue'||origRepeat==='wed'||origRepeat==='thu'||origRepeat==='fri'){
         // 每周某天：加到下周同一天
         const nextWeek=new Date(today);
-        const targetDay=['sun','mon','tue','wed','thu','fri','sat'].indexOf(t.repeat);
+        const targetDay=['sun','mon','tue','wed','thu','fri','sat'].indexOf(origRepeat);
         let d=(targetDay-nextWeek.getDay()+7)%7;
         if(d===0)d=7; // 如果今天就是目标天，跳到下周
         nextWeek.setDate(nextWeek.getDate()+d);
-        tasks.push({id:uid(),content:t.content,people:[...t.people],status:'todo',day:t.repeat,
-          remindAt:t.remindAt,repeat:t.repeat,order:Date.now(),weekKey:weekKey(nextWeek),createdAt:Date.now()});
+        tasks.push({id:uid(),content:t.content,people:[...t.people],status:'todo',day:origRepeat,
+          remindAt:t.remindAt,repeat:origRepeat,order:Date.now(),weekKey:weekKey(nextWeek),createdAt:Date.now()});
         changed=true;
       }
       t._nextCreated=true;

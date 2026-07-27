@@ -1,6 +1,6 @@
 {
   "name": "weekly-work-board",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "本周工作安排 - 桌面应用（Electron）",
   "main": "main.js",
   "author": "WorkBuddy",
