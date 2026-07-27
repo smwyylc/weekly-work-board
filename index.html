@@ -653,15 +653,14 @@
     <div id="aboutFeatures" class="about-section">
       <h3>功能</h3>
       <ul style="margin:4px 0 10px 16px;font-size:13px;line-height:1.8">
-        <li>周一至周五 + 残留任务六列看板</li>
-        <li>拖拽改列 / 同列内拖拽排序</li>
-        <li>AI 对话增删改任务（自然语言）</li>
-        <li>流式输出 + Markdown 渲染</li>
-        <li>搜索筛选 / 快捷键 / 全局撤销</li>
-        <li>任务提醒（可选时间+系统通知）</li>
-        <li>例行任务（每日/每周自动循环）</li>
-        <li>导出 / 开机自启动</li>
-        <li>自动跨周结算</li>
+        <li>周一至周五 + 残留任务看板，支持 5/7 天切换</li>
+        <li>拖拽移动 / 排序，插入位置实时指示</li>
+        <li>AI 自然语言增删改任务，流式 SSE + Markdown</li>
+        <li>任务提醒（系统通知 + 应用内 Toast）</li>
+        <li>例行任务多选重复（每日/自定义星期，互斥）</li>
+        <li>搜索筛选 / 撤销重做 / 自动跨周结算</li>
+        <li>AI 面板宽度拖拽记忆 / 数据导出 / 开机自启</li>
+        <li>API Key 加密存储（safeStorage），自定义接口</li>
       </ul>
       <h3>⌨ 快捷键</h3>
       <div style="margin:4px 0 10px;font-size:13px;line-height:1.9">
@@ -677,16 +676,16 @@
       <h3>v1.0.0 🎉</h3>
       <ul style="margin:4px 0 10px 16px;font-size:13px;line-height:1.8">
         <li>🎨 项目更名：Work In Progress (WIP)</li>
-        <li>🖼 卡片布局重构：× 浮层不留位，标签行独立，统一 tag-pill 药丸样式</li>
-        <li>📌 表头固定 + 拖拽插入指示线</li>
-        <li>🔧 重复周期支持多选（每日/多日，互斥）</li>
-        <li>📝 备注字段常驻可见，不再隐藏于「更多选项」</li>
-        <li>🤖 AI 操作栏移出对话框，显示详细操作摘要</li>
-        <li>🔗 设置中新增仓库链接按钮</li>
-        <li>🔌 AI 对话框可拖拽调整宽度并记忆</li>
-        <li>🔒 残留列 done 保护：多处拦截状态/移动操作</li>
-        <li>📊 排序改为拖拽优先于优先级</li>
-        <li>🐛 修复：发送按钮 disabled、版本比较、mdToHtml JSON 提取等</li>
+        <li>🖌 UI 全面升级：卡片双层阴影、优先级色条、SVG 图标</li>
+        <li>📐 列等高填满屏幕 + 间距收紧，视觉整洁</li>
+        <li>🏷 状态 pill 着色（蓝/青/灰/红），一目了然</li>
+        <li>🔧 重复周期多选 + 每日互斥</li>
+        <li>📝 备注字段常驻，不再隐藏</li>
+        <li>🤖 AI 操作栏移出对话框，摘要 + 自动消失</li>
+        <li>⚡ 流式渲染 RAF 节流，长对话不再卡顿</li>
+        <li>🔒 残留列 done 全方位保护</li>
+        <li>📌 表头固定、拖拽插入指示线、仓库链接</li>
+        <li>🐛 修复：发送按钮 disabled、版本比较、typing 动画等</li>
       </ul>
       <h3>v1.1.0</h3>
       <ul style="margin:4px 0 10px 16px;font-size:13px;line-height:1.8">
