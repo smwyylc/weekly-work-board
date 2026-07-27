@@ -305,20 +305,6 @@ window.WB = window.WB || {};
         else if (e.key === 'y') { e.preventDefault(); WB.redo(); }
       }
     });
-
-    // AI 操作栏按钮（外部 ops bar）
-    var opsBar = document.getElementById('aiOpsBar');
-    if (opsBar) {
-      opsBar.addEventListener('click', function(e) {
-        var btn = e.target.closest('.ops-btn');
-        if (!btn) return;
-        var ops = WB.extractOpsFromHtml(btn.outerHTML);
-        if (ops.length) {
-          var summaries = WB.execOpsWithDetail(ops);
-          WB.showOpsBar(ops, summaries);
-        }
-      });
-    }
   };
 
   // ==================== 初始化 ====================

@@ -13,14 +13,11 @@ window.WB = window.WB || {};
       return !q || t.content.toLowerCase().includes(q) || (t.people||[]).some(function(p) { return p.toLowerCase().includes(q); });
     };
     var priOrder = {urgent:0, normal:1, low:2};
-    var statusOrder = {doing:0, todo:1, blocked:2, done:3};
     var sortTasks = function(a, b) {
-      var sa = statusOrder[a.status] || 99, sb = statusOrder[b.status] || 99;
-      if (sa !== sb) return sa - sb;
-      var pa = priOrder[a.priority] || 1, pb = priOrder[b.priority] || 1;
-      if (pa !== pb) return pa - pb;
       var ao = a.order || a.createdAt || 0, bo = b.order || b.createdAt || 0;
-      return ao - bo;
+      if (ao !== bo) return ao - bo;
+      var pa = priOrder[a.priority] || 1, pb = priOrder[b.priority] || 1;
+      return pa - pb;
     };
     var html = '';
     var todayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];

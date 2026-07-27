@@ -1,7 +1,7 @@
 {
   "name": "weekly-work-board",
   "version": "1.1.2",
-  "description": "本周工作安排 - 桌面应用（Electron）",
+  "description": "WIP Board — Work In Progress Board",
   "main": "main.js",
   "author": "WorkBuddy",
   "scripts": {
@@ -9,8 +9,8 @@
     "dist": "electron-builder"
   },
   "build": {
-    "appId": "com.workbuddy.weeklyworkboard",
-    "productName": "WeeklyWorkBoard",
+    "appId": "com.workbuddy.wipboard",
+    "productName": "WIP Board",
     "copyright": "Copyright © 2026",
     "directories": {
       "output": "dist",
@@ -28,7 +28,7 @@
       "createStartMenuShortcut": true,
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "本周工作安排"
+      "shortcutName": "WIP Board"
     },
     "files": [
       "index.html",

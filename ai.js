@@ -172,10 +172,6 @@ window.WB = window.WB || {};
     bar._timer = setTimeout(function() { bar.classList.remove('show'); }, 6000);
   };
 
-  WB.extractOpsFromHtml = function(html) {
-    try { var m = html.match(/data-ops='([^']+)'/); return m ? JSON.parse(m[1]) : []; } catch(e) { return []; }
-  };
-
   WB.pushMsg = function(role, text) {
     var c = document.getElementById('aiBody');
     var d = document.createElement('div');
@@ -280,7 +276,7 @@ window.WB = window.WB || {};
       '当前看板上的任务数据（JSON）：\n' + WB.getVisibleTasksJSON() + '\n\n' +
       '可用 day：mon(周一) tue(周二) wed(周三) thu(周四) fri(周五) sat(周六) sun(周日)，null（残留/未排期）。当前设置为 ' + WB.state.weekMode + ' 天工作周。\n\n' +
       '当用户增删改任务时，在回复末尾附加 ```json 代码块，包含 operations 数组：\n' +
-      '- {"action":"add","content":"...","people":["..."],"status":"todo|doing|done|blocked","day":"mon"|...|null,"repeat?":"daily|mon|tue|wed|thu|fri","remindAt?":"HH:MM","notes?":"...","priority?":"low|normal|urgent"}\n' +
+      '- {"action":"add","content":"...","people":["..."],"status":"todo|doing|done|blocked","day":"mon"|...|null,"beforeTaskId?":"...","repeat?":"daily|mon|tue|wed|thu|fri","remindAt?":"HH:MM","notes?":"...","priority?":"low|normal|urgent"}\n' +
       '- {"action":"move","taskId":"...","day":"mon"|...|null}\n' +
       '- {"action":"edit","taskId":"...","content?":"...","people?":[...],"day?":"...","repeat?":"...","remindAt?":"HH:MM或null","notes?":"...","priority?":"low|normal|urgent"}\n' +
       '- {"action":"status","taskId":"...","status":"todo|doing|done|blocked","notes?":"状态变更原因（可选）"}\n' +
@@ -290,6 +286,7 @@ window.WB = window.WB || {};
       '1. taskId 必须使用上面 JSON 中真实存在的 id，不要编造。\n' +
       '2. 新增任务由系统生成 id，你不必提供。\n' +
       '3. 直接执行，禁止追问。不知道的就用常识推断（没说日期就今天，没状态就 todo）。\n' +
+      '3.1 新增任务默认排在所在列末尾。若用户说"排在XX前面/后面"，使用 beforeTaskId 指定插入位置（目标任务的 id）。\n' +
       '4. 用中文简洁回复，不加表情符号。\n' +
       '5. 用户说"这个/那个/它"等代词时，根据聊天历史判断是哪个任务，不要猜错。\n' +
       '6. 当有多个任务名称相似时，务必通过完整任务内容精确匹配，不能混淆。\n' +
@@ -516,12 +513,20 @@ window.WB = window.WB || {};
     ops.forEach(function(op) {
       var s = '';
       if (op.action === 'add') {
-        WB.state.tasks.push({
+        var task = {
           id: WB.uid(), content: op.content, people: op.people||[], status: op.status||'todo',
           day: op.day || null, remindAt: op.remindAt||null,
           repeat: op.repeat||null, notes: op.notes||null, priority: op.priority||'normal',
           order: Date.now(), weekKey: wk, createdAt: Date.now()
-        });
+        };
+        // 如果指定了 beforeTaskId，插入到该任务之前
+        if (op.beforeTaskId) {
+          var target = WB.state.tasks.find(function(x) { return x.id === op.beforeTaskId; });
+          if (target) {
+            task.order = (target.order || target.createdAt || Date.now()) - 1;
+          }
+        }
+        WB.state.tasks.push(task);
         s = '添加「' + (op.content||'').slice(0,30) + '」';
         changed = true;
       } else if (op.action === 'move') {
