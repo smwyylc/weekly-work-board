@@ -149,27 +149,15 @@ window.WB = window.WB || {};
       var safe = url.startsWith('http://') || url.startsWith('https://');
       return safe ? '<a href="' + url + '" target="_blank" rel="noopener">' + text + '</a>' : text + '（' + url + '）';
     });
-    // 14) 换行
+    // 14) 换行 — 先清理标签前后多余换行，避免空行
+    s = s.replace(/\n+(<[\/]?(?:h[1-4]|table|ul|ol|li|pre)[^>]*>)/g, '$1');
+    s = s.replace(/(<[\/]?(?:table|ul|ol|pre|h[1-4])[^>]*>)\n+/g, '$1');
     s = s.replace(/\n/g, '<br>');
     // 清理首尾多余空白/换行
     s = s.replace(/^(<br>)+/, '').replace(/(<br>)+$/, '');
     s = s.replace(/(<br>){3,}/g, '<br><br>');
     // 15) 操作按钮 — 已移至外部 aiOpsBar
     return s;
-  };
-
-  WB.showOpsBar = function(ops, summaries) {
-    var bar = document.getElementById('aiOpsBar');
-    if (!bar) return;
-    var n = ops.length;
-    var detail = '';
-    if (summaries && summaries.length) {
-      detail = '<div class="ops-detail">' + summaries.map(function(s) { return WB.esc(s); }).join(' · ') + '</div>';
-    }
-    bar.innerHTML = '<span class="ops-info">✅ 已执行 ' + n + ' 项操作</span>' + detail;
-    bar.classList.add('show');
-    clearTimeout(bar._timer);
-    bar._timer = setTimeout(function() { bar.classList.remove('show'); }, 6000);
   };
 
   WB.pushMsg = function(role, text) {
@@ -378,7 +366,9 @@ window.WB = window.WB || {};
         var ops = WB.extractOpsRaw(reply);
         if (ops.length) {
           var summaries = WB.execOpsWithDetail(ops);
-          WB.showOpsBar(ops, summaries);
+          if (summaries && summaries.length) {
+            WB.pushSysMsg('✅ ' + summaries.join(' · '));
+          }
         }
         sendBtn.disabled = false;
       });
@@ -418,7 +408,9 @@ window.WB = window.WB || {};
       var ops2 = WB.extractOpsRaw(reply);
       if (ops2.length) {
         var summaries2 = WB.execOpsWithDetail(ops2);
-        WB.showOpsBar(ops2, summaries2);
+        if (summaries2 && summaries2.length) {
+          WB.pushSysMsg('✅ ' + summaries2.join(' · '));
+        }
       }
     } catch(err) {
       

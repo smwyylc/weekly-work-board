@@ -368,10 +368,6 @@ window.WB = window.WB || {};
       window.electronAPI.setAutoStart(true).catch(function(e) { console.error('开机自启设置失败', e); });
     }
 
-    if (WB.pushSysMsg) {
-      WB.pushSysMsg('💡 快捷键：Ctrl+N 新建  Ctrl+F 搜索  Ctrl+Z 撤销  Ctrl+Shift+Z/Ctrl+Y 重做  ⇧Enter 换行');
-      WB.pushSysMsg('💡 当前 AI 接口：' + WB.state.aiSettings.base + '  模型：' + WB.state.aiSettings.model + (WB.state.aiSettings.key ? ' (已配置 Key)' : ' (无需 Key 即可使用)'));
-    }
     WB.updateAiMeta();
   })();
 

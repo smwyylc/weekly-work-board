@@ -323,15 +323,6 @@
   .msg.bot li{margin:1px 0}
   .msg.bot a{color:var(--accent);text-decoration:none}
   .msg.bot a:hover{text-decoration:underline}
-  .ai-ops-bar{
-    display:none; align-items:flex-start; justify-content:space-between; gap:10px;
-    padding:7px 14px; margin:0 4px;
-    background:var(--accent-soft); border-radius:8px;
-    font-size:11px; color:var(--accent-ink); flex-direction:column;
-  }
-  .ai-ops-bar.show{display:flex}
-  .ai-ops-bar .ops-info{font-weight:600}
-  .ai-ops-bar .ops-detail{font-size:10px; color:var(--muted); line-height:1.5}
   .typing{display:inline-flex; gap:4px; align-items:center; padding:3px 0}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--muted-2);animation:blink 1.2s infinite}
   .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
@@ -509,7 +500,6 @@
           </div>
         </div>
       </div>
-      <div class="ai-ops-bar" id="aiOpsBar"></div>
       <div class="ai-foot">
         <div class="composer">
           <textarea id="aiInput" rows="1" placeholder="例如：把周三的评审挪到周四，关联人员加李四"></textarea>
@@ -518,7 +508,7 @@
             <button class="send" id="aiSend" disabled title="发送">➤</button>
           </div>
         </div>
-        <div class="ai-meta"><span class="i" id="aiMetaInfo" title="deepseek-v4-flash-free · 无需 Key">ⓘ</span></div>
+        <div class="ai-meta" id="aiMetaInfo" style="display:none"></div>
       </div>
     </aside>
   </div>
