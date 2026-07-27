@@ -1,7 +1,7 @@
 {
   "name": "weekly-work-board",
-  "version": "1.1.2",
-  "description": "WIP Board — Work In Progress Board",
+  "version": "1.0.0",
+  "description": "Work In Progress — 本周工作安排",
   "main": "main.js",
   "author": "WorkBuddy",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "build": {
     "appId": "com.workbuddy.wipboard",
-    "productName": "WIP Board",
+    "productName": "Work In Progress",
     "copyright": "Copyright © 2026",
     "directories": {
       "output": "dist",
@@ -28,7 +28,7 @@
       "createStartMenuShortcut": true,
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "WIP Board"
+      "shortcutName": "WIP"
     },
     "files": [
       "index.html",

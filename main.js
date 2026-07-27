@@ -17,7 +17,7 @@ function createWindow() {
     height: winH,
     minWidth: minW,
     minHeight: minH,
-    title: 'WIP Board',
+    title: 'WIP',
     icon: path.join(__dirname, 'assets', 'icon.ico'),
     autoHideMenuBar: true,
     webPreferences: {
@@ -42,7 +42,7 @@ function createWindow() {
 function createTray() {
   const iconPath = path.join(__dirname, 'assets', 'icon.ico');
   tray = new Tray(iconPath);
-  tray.setToolTip('WIP Board');
+  tray.setToolTip('WIP');
   const ctx = Menu.buildFromTemplate([
     { label: '显示窗口', click: () => { mainWindow.show(); mainWindow.focus(); } },
     { type: 'separator' },
