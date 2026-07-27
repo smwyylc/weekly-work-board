@@ -123,6 +123,12 @@ window.WB = window.WB || {};
   WB.moveTask = function(id, day, beforeId) {
     var t = WB.state.tasks.find(function(x) { return x.id === id; });
     if (!t) return;
+    // 已完成的任务不允许移入残留列（残留列仅展示未完成任务）
+    if (!day && t.status === 'done') {
+      if (WB.pushSysMsg) WB.pushSysMsg('⚠️ 已完成的任务不能移入残留列（残留列仅展示未完成任务）');
+      WB.render();
+      return;
+    }
     WB.saveSnapshot();
     var changedCol = (t.day !== day);
     if (day && changedCol) t.weekKey = WB.weekKey(WB.state.viewWeekStart);
@@ -143,6 +149,10 @@ window.WB = window.WB || {};
     if (!t) return;
     WB.saveSnapshot();
     t.status = WB.STATUS_ORDER[(WB.STATUS_ORDER.indexOf(t.status)+1) % WB.STATUS_ORDER.length];
+    // 残留列中的任务不允许标记为已完成，自动跳过 done → 下一状态
+    if (t.day === null && t.status === 'done') {
+      t.status = WB.STATUS_ORDER[(WB.STATUS_ORDER.indexOf(t.status)+1) % WB.STATUS_ORDER.length];
+    }
     WB.save();
     WB.render();
   };
@@ -238,11 +248,21 @@ window.WB = window.WB || {};
     if (WB.state.editingId) {
       var t = WB.state.tasks.find(function(x) { return x.id === WB.state.editingId; });
       if (t) {
+        // 残留列中不允许标记为已完成
+        if (!day && status === 'done') {
+          if (WB.pushSysMsg) WB.pushSysMsg('⚠️ 残留列中的任务不能标记为已完成，请先将其排入具体日期');
+          return;
+        }
         t.content = content; t.day = day; t.status = status; t.people = people;
         t.remindAt = remindAt; t.repeat = repeat; t.notes = notes; t.priority = priority;
         if (day) t.weekKey = WB.weekKey(WB.state.viewWeekStart);
       }
     } else {
+      // 新增任务时，残留列也不允许直接创建为已完成
+      if (!day && status === 'done') {
+        if (WB.pushSysMsg) WB.pushSysMsg('⚠️ 残留列中的任务不能标记为已完成，请先将其排入具体日期');
+        return;
+      }
       WB.state.tasks.push({
         id: WB.uid(), content: content, day: day, status: status, people: people,
         remindAt: remindAt, repeat: repeat, notes: notes, priority: priority,

@@ -288,7 +288,8 @@ window.WB = window.WB || {};
       '6. 当有多个任务名称相似时，务必通过完整任务内容精确匹配，不能混淆。\n' +
       '7. 用户说"提醒我"或"到时提醒"时，通过 remindAt 字段设置提醒时间（格式 HH:MM，如14:25）。本应用支持到点系统通知，直接设置即可，不要说做不到。\n' +
       '8. 【重要】JSON 操作块必须用 ```json 包裹，回复正文中绝对不要出现任何裸露的 JSON 数组或对象。\n' +
-      '9. 优先级默认为一般（normal），除非用户明确说"加急""重要""优先""紧急"等，否则不要主动设置或修改 priority 字段。';
+      '9. 优先级默认为一般（normal），除非用户明确说"加急""重要""优先""紧急"等，否则不要主动设置或修改 priority 字段。\n' +
+      '10. 不要将已完成（status: done）的任务移入残留列（day: null）——已完成任务只留在原列中，残留列仅展示未完成的任务。';
   };
 
   WB.sendChat = async function() {
@@ -513,11 +514,16 @@ window.WB = window.WB || {};
       } else if (op.action === 'move') {
         var t = WB.state.tasks.find(function(x) { return x.id === op.taskId; });
         if (t) {
-          var from = t.day || '残留';
-          t.day = op.day || null;
-          if (op.day) t.weekKey = wk;
-          t.order = Date.now();
-          detail = '➡️ 移动「' + (t.content||'').slice(0,20) + '」到' + (op.day || '残留');
+          // 已完成的任务不允许移入残留列
+          if (!op.day && t.status === 'done') {
+            detail = '⚠️ 已完成的任务不能移入残留列：「' + (t.content||'').slice(0,20) + '」';
+          } else {
+            var from = t.day || '残留';
+            t.day = op.day || null;
+            if (op.day) t.weekKey = wk;
+            t.order = Date.now();
+            detail = '➡️ 移动「' + (t.content||'').slice(0,20) + '」到' + (op.day || '残留');
+          }
         }
       } else if (op.action === 'edit') {
         var t2 = WB.state.tasks.find(function(x) { return x.id === op.taskId; });
@@ -543,10 +549,15 @@ window.WB = window.WB || {};
       } else if (op.action === 'status') {
         var t3 = WB.state.tasks.find(function(x) { return x.id === op.taskId; });
         if (t3 && t3.status !== op.status) {
-          var s = (WB.STATUS[t3.status] && WB.STATUS[t3.status].n) || t3.status;
-          t3.status = op.status;
-          if (op.notes !== undefined) t3.notes = op.notes || null;
-          detail = '「' + (t3.content||'').slice(0,20) + '」' + s + '→' + ((WB.STATUS[op.status] && WB.STATUS[op.status].n) || op.status) + (op.notes ? '(' + op.notes.slice(0,15) + ')' : '');
+          // 残留列中不允许标记为已完成
+          if (t3.day === null && op.status === 'done') {
+            detail = '⚠️ 残留列任务不能标记为已完成：「' + (t3.content||'').slice(0,20) + '」';
+          } else {
+            var s = (WB.STATUS[t3.status] && WB.STATUS[t3.status].n) || t3.status;
+            t3.status = op.status;
+            if (op.notes !== undefined) t3.notes = op.notes || null;
+            detail = '「' + (t3.content||'').slice(0,20) + '」' + s + '→' + ((WB.STATUS[op.status] && WB.STATUS[op.status].n) || op.status) + (op.notes ? '(' + op.notes.slice(0,15) + ')' : '');
+          }
         }
       } else if (op.action === 'delete') {
         var t4 = WB.state.tasks.find(function(x) { return x.id === op.taskId; });
