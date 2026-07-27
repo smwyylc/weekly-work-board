@@ -398,7 +398,7 @@ async function callAI(payload){
   return data;
 }
 
-function stripJsonBlock(s){return (s||'').replace(/```json[\s\S]*?```/g,'').trim()}
+function stripJsonBlock(s){return (s||'').replace(/```json[\s\S]*?```/g,'').replace(/\n?\s*\[\s*\{\s*"action"[\s\S]*?\}\s*\]\s*/g,'').replace(/\n?\s*\{\s*"operations"[\s\S]*?\}\s*/g,'').trim()}
 let _toolTags=[];
 function addToolTag(s){const d=document.createElement('div');d.className='msg tool-tag';d.textContent=s;document.getElementById('chat').appendChild(d);d.scrollIntoView();_toolTags.push(d)}
 function removeToolTags(){_toolTags.forEach(d=>d.remove());_toolTags=[]}
@@ -428,8 +428,9 @@ ${getVisibleTasksJSON()}
 3. 直接执行，禁止追问。不知道的就用常识推断（没说日期就今天，没状态就 todo）。
 4. 用中文简洁回复，不加表情符号。
 5. 用户说"这个/那个/它"等代词时，根据聊天历史判断是哪个任务，不要猜错。
-6. 当有多个任务名称相似时（如"外部账户管理系统sow"和"会议室mcpserver的sow"），务必通过完整任务内容精确匹配，不能混淆。用户说的"那个sow"是指他刚提到的那个任务，不是别的。
-7. 用户说"提醒我"或"到时提醒"时，通过 remindAt 字段设置提醒时间（格式 HH:MM，如14:25）。应用支持到点弹出系统通知。不要说你做不到，直接用 edit 设置 remindAt 即可。`;
+6. 当有多个任务名称相似时，务必通过完整任务内容精确匹配，不能混淆。
+7. 用户说"提醒我"或"到时提醒"时，通过 remindAt 字段设置提醒时间（格式 HH:MM，如14:25）。本应用支持到点系统通知，直接设置即可，不要说做不到。
+8. 【重要】JSON 操作块必须用 \`\`\`json 包裹，回复正文中绝对不要出现任何裸露的 JSON 数组或对象。`;
 }
 async function sendChat(){
   const el=document.getElementById('ai-text');
