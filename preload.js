@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   installUpdate: (path) => ipcRenderer.invoke('install-update', path),
   // 退出应用
   quitApp: () => ipcRenderer.invoke('quit-app'),
+  // 打开外部链接
+  openURL: (url) => ipcRenderer.invoke('open-url', url),
   // 流式输出
   callAIStream: (payload) => ipcRenderer.invoke('call-ai-stream', payload),
   onAIChunk: (cb) => ipcRenderer.on('ai-stream-chunk', (_, c) => cb(c)),

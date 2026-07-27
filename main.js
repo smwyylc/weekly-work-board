@@ -220,6 +220,11 @@ ipcMain.handle('quit-app', () => {
   app.quit();
 });
 
+// 打开外部链接
+ipcMain.handle('open-url', (event, url) => {
+  require('electron').shell.openExternal(url);
+});
+
 // 检查更新：从 GitHub Releases 拉取最新安装包
 ipcMain.handle('check-update', async () => {
   try {

@@ -151,21 +151,25 @@ window.WB = window.WB || {};
     });
     // 14) 换行
     s = s.replace(/\n/g, '<br>');
+    // 清理首尾多余空白/换行
+    s = s.replace(/^(<br>)+/, '').replace(/(<br>)+$/, '');
+    s = s.replace(/(<br>){3,}/g, '<br><br>');
     // 15) 操作按钮 — 已移至外部 aiOpsBar
     return s;
   };
 
-  WB.showOpsBar = function(ops, autoExecuted) {
+  WB.showOpsBar = function(ops, summaries) {
     var bar = document.getElementById('aiOpsBar');
     if (!bar) return;
-    if (autoExecuted) {
-      bar.innerHTML = '<span class="ops-done">✅ 已执行 ' + ops.length + ' 项操作</span>';
-    } else {
-      bar.innerHTML = '<span class="ops-info">🔧 ' + ops.length + ' 项待执行</span><button class="ops-btn" data-ops=\'' + WB.esc(JSON.stringify(ops)) + '\'>执行</button>';
+    var n = ops.length;
+    var detail = '';
+    if (summaries && summaries.length) {
+      detail = '<div class="ops-detail">' + summaries.map(function(s) { return WB.esc(s); }).join(' · ') + '</div>';
     }
+    bar.innerHTML = '<span class="ops-info">✅ 已执行 ' + n + ' 项操作</span>' + detail;
     bar.classList.add('show');
     clearTimeout(bar._timer);
-    bar._timer = setTimeout(function() { bar.classList.remove('show'); }, 5000);
+    bar._timer = setTimeout(function() { bar.classList.remove('show'); }, 6000);
   };
 
   WB.extractOpsFromHtml = function(html) {
@@ -304,7 +308,6 @@ window.WB = window.WB || {};
     WB.state.chatHistory.push({role:'user', content:text});
     var sendBtn = document.getElementById('aiSend');
     sendBtn.disabled = true;
-    WB.addToolTag('📋 获取看板数据...');
     var now = new Date();
     var dayNames = ['日','一','二','三','四','五','六'];
     var dateTag = '[当前日期：' + WB.fmt(now) + ' 周' + dayNames[now.getDay()] + ']';
@@ -341,7 +344,7 @@ window.WB = window.WB || {};
       window.electronAPI.onAIChunk(function(c) {
         if (finished) return;
         if (c === null) return;
-        if (!typing.parentNode) { document.getElementById('aiBody').appendChild(aiBubble); aiBubble.appendChild(typing); WB.removeToolTags(); }
+        if (!typing.parentNode) { document.getElementById('aiBody').appendChild(aiBubble); aiBubble.appendChild(typing); }
         rawContent += c;
         var displayContent = WB.stripJsonBlock(rawContent);
         if (displayContent) {
@@ -360,11 +363,10 @@ window.WB = window.WB || {};
         aiBubble.innerHTML = WB.mdToHtml(reply);
         WB.state.chatHistory.push({role:'assistant', content:reply});
         WB.save();
-        WB.removeToolTags();
         var ops = WB.extractOpsRaw(reply);
         if (ops.length) {
-          WB.execOpsWithDetail(ops);
-          WB.showOpsBar(ops, true);
+          var summaries = WB.execOpsWithDetail(ops);
+          WB.showOpsBar(ops, summaries);
         }
         sendBtn.disabled = false;
       });
@@ -372,7 +374,7 @@ window.WB = window.WB || {};
         if (finished) return;
         finished = true;
         cleanup();
-        WB.removeToolTags();
+        
         WB.pushMsg('ai', '⚠️ ' + (e||'流式请求失败') + (/invalid api key|401|unauthorized|api.?key/i.test(e||'') ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
         sendBtn.disabled = false;
       });
@@ -382,7 +384,7 @@ window.WB = window.WB || {};
         if (!finished) {
           finished = true;
           cleanup();
-          WB.removeToolTags();
+          
           WB.pushMsg('ai', '⚠️ ' + (e.message||e) + (/invalid api key|401|unauthorized|api.?key/i.test(e.message||'') ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
           sendBtn.disabled = false;
         }
@@ -393,7 +395,7 @@ window.WB = window.WB || {};
     // 降级回退：非流式
     try {
       var data = await WB.callAI(payload);
-      WB.removeToolTags();
+      
       var reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '(无回复)';
       var aiBubble2 = document.createElement('div');
       aiBubble2.className = 'msg bot';
@@ -403,11 +405,11 @@ window.WB = window.WB || {};
       WB.save();
       var ops2 = WB.extractOpsRaw(reply);
       if (ops2.length) {
-        WB.execOpsWithDetail(ops2);
-        WB.showOpsBar(ops2, true);
+        var summaries2 = WB.execOpsWithDetail(ops2);
+        WB.showOpsBar(ops2, summaries2);
       }
     } catch(err) {
-      WB.removeToolTags();
+      
       WB.pushMsg('ai', '⚠️ ' + err.message + (/invalid api key|401|unauthorized|api.?key/i.test(err.message) ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
     } finally {
       sendBtn.disabled = false;
@@ -510,8 +512,9 @@ window.WB = window.WB || {};
     var wk = WB.weekKey(WB.state.viewWeekStart);
     WB.saveSnapshot();
     var changed = false;
+    var summaries = [];
     ops.forEach(function(op) {
-      var detail = '';
+      var s = '';
       if (op.action === 'add') {
         WB.state.tasks.push({
           id: WB.uid(), content: op.content, people: op.people||[], status: op.status||'todo',
@@ -519,60 +522,49 @@ window.WB = window.WB || {};
           repeat: op.repeat||null, notes: op.notes||null, priority: op.priority||'normal',
           order: Date.now(), weekKey: wk, createdAt: Date.now()
         });
-        detail = '📋 添加「' + (op.content||'').slice(0,20) + '」';
+        s = '添加「' + (op.content||'').slice(0,30) + '」';
+        changed = true;
       } else if (op.action === 'move') {
         var t = WB.state.tasks.find(function(x) { return x.id === op.taskId; });
-        if (t) {
-          // 已完成的任务不允许移入残留列
-          if (!op.day && t.status === 'done') {
-            detail = '⚠️ 已完成的任务不能移入残留列：「' + (t.content||'').slice(0,20) + '」';
-          } else {
-            var from = t.day || '残留';
-            t.day = op.day || null;
-            if (op.day) t.weekKey = wk;
-            t.order = Date.now();
-            detail = '➡️ 移动「' + (t.content||'').slice(0,20) + '」到' + (op.day || '残留');
-          }
+        if (t && !(!op.day && t.status === 'done')) {
+          var dst = op.day || '残留';
+          t.day = op.day || null;
+          if (op.day) t.weekKey = wk;
+          t.order = Date.now();
+          s = '移动「' + (t.content||'').slice(0,20) + '」→ ' + dst;
+          changed = true;
         }
       } else if (op.action === 'edit') {
         var t2 = WB.state.tasks.find(function(x) { return x.id === op.taskId; });
         if (t2) {
           var parts = [];
-          if (op.content != null && op.content !== t2.content) parts.push('内容');
-          if (op.people != null) parts.push('人员');
-          if (op.day !== undefined) parts.push('所在日→' + (op.day || '残留'));
-          if (op.remindAt !== undefined) parts.push('提醒→' + op.remindAt);
-          if (op.repeat !== undefined) parts.push('重复周期');
-          if (op.notes !== undefined) parts.push('备注');
-          if (op.priority !== undefined) parts.push('优先级→' + op.priority);
-          if (op.content != null) t2.content = op.content;
-          if (op.people != null) t2.people = op.people;
-          if (op.day !== undefined) { if (op.day) t2.weekKey = wk; t2.day = op.day || null; }
-          if (op.remindAt !== undefined) t2.remindAt = op.remindAt || null;
-          if (op.repeat !== undefined) t2.repeat = op.repeat || null;
-          if (op.notes !== undefined) t2.notes = op.notes || null;
-          if (op.priority !== undefined) t2.priority = op.priority;
+          if (op.content != null) { t2.content = op.content; parts.push('内容'); }
+          if (op.people != null) { t2.people = op.people; parts.push('人员'); }
+          if (op.day !== undefined) { if (op.day) t2.weekKey = wk; t2.day = op.day || null; parts.push('移至' + (op.day || '残留')); }
+          if (op.remindAt !== undefined) { t2.remindAt = op.remindAt || null; parts.push('提醒'); }
+          if (op.repeat !== undefined) { t2.repeat = op.repeat || null; parts.push('重复'); }
+          if (op.notes !== undefined) { t2.notes = op.notes || null; parts.push('备注'); }
+          if (op.priority !== undefined) { t2.priority = op.priority; parts.push('优先级'); }
           t2.order = Date.now();
-          detail = '✏️ 修改「' + (t2.content||'').slice(0,20) + '」' + (parts.length ? '(' + parts.join(',') + ')' : '');
+          s = '修改「' + (t2.content||'').slice(0,20) + '」' + (parts.length ? ' (' + parts.join('、') + ')' : '');
+          changed = true;
         }
       } else if (op.action === 'status') {
         var t3 = WB.state.tasks.find(function(x) { return x.id === op.taskId; });
-        if (t3 && t3.status !== op.status) {
-          // 残留列中不允许标记为已完成
-          if (t3.day === null && op.status === 'done') {
-            detail = '⚠️ 残留列任务不能标记为已完成：「' + (t3.content||'').slice(0,20) + '」';
-          } else {
-            var s = (WB.STATUS[t3.status] && WB.STATUS[t3.status].n) || t3.status;
-            t3.status = op.status;
-            if (op.notes !== undefined) t3.notes = op.notes || null;
-            detail = '「' + (t3.content||'').slice(0,20) + '」' + s + '→' + ((WB.STATUS[op.status] && WB.STATUS[op.status].n) || op.status) + (op.notes ? '(' + op.notes.slice(0,15) + ')' : '');
-          }
+        if (t3 && t3.status !== op.status && !(t3.day === null && op.status === 'done')) {
+          var oldS = (WB.STATUS[t3.status] && WB.STATUS[t3.status].n) || t3.status;
+          t3.status = op.status;
+          if (op.notes !== undefined) t3.notes = op.notes || null;
+          var newS = (WB.STATUS[op.status] && WB.STATUS[op.status].n) || op.status;
+          s = '「' + (t3.content||'').slice(0,20) + '」' + oldS + ' → ' + newS;
+          changed = true;
         }
       } else if (op.action === 'delete') {
         var t4 = WB.state.tasks.find(function(x) { return x.id === op.taskId; });
         if (t4) {
-          detail = '🗑 删除「' + (t4.content||'').slice(0,20) + '」';
+          s = '删除「' + (t4.content||'').slice(0,20) + '」';
           WB.state.tasks = WB.state.tasks.filter(function(x) { return x.id !== op.taskId; });
+          changed = true;
         }
       } else if (op.action === 'carryover') {
         var nk = WB.weekKey(WB.addDays(WB.state.viewWeekStart, 7));
@@ -580,12 +572,14 @@ window.WB = window.WB || {};
         WB.state.tasks.forEach(function(t) {
           if (t.weekKey === wk && t.status !== 'done') { t.weekKey = nk; t.day = null; c++; }
         });
-        if (c) detail = '⏭ 滚入下周 ' + c + ' 项任务';
         WB.state.viewWeekStart = WB.addDays(WB.state.viewWeekStart, 7);
+        s = '滚入下周 ' + c + ' 项';
+        changed = true;
       }
-      if (detail) { changed = true; WB.addToolTag(detail); }
+      if (s) summaries.push(s);
     });
     if (changed) { WB.save(); WB.render(); }
+    return summaries;
   };
 
 })(window.WB);

@@ -99,23 +99,23 @@ window.WB = window.WB || {};
     var people = (t.people||[]).map(function(p) {
       return '<span class="who"><span class="av">' + WB.esc((p||'?').charAt(0)) + '</span>' + WB.esc(p) + '</span>';
     }).join('');
-    var resTag = t.day === null ? '<span style="font-family:var(--mono);font-size:10px;color:var(--muted);display:block;margin-bottom:4px">残留</span>' : '';
-    var remindTag = t.remindAt ? '<span class="remind">⏰ ' + t.remindAt + '</span>' : '';
-    var repeatIcon = t.repeat ? '<span class="recur">↻ ' + ({'daily':'每日', mon:'每周一', tue:'每周二', wed:'每周三', thu:'每周四', fri:'每周五'}[t.repeat] || t.repeat) + '</span>' : '';
+    var resTag = t.day === null ? '<span class="res-tag">残留</span>' : '';
+    var remindTag = t.remindAt ? '<span class="tag-pill">⏰ ' + t.remindAt + '</span>' : '';
+    var repeatIcon = t.repeat ? '<span class="tag-pill">↻ ' + ({'daily':'每日', mon:'每周一', tue:'每周二', wed:'每周三', thu:'每周四', fri:'每周五'}[t.repeat] || t.repeat) + '</span>' : '';
     var notesIcon = t.notes ? '<span class="notes-icon">📎</span>' : '';
     var priMap = {urgent:'↑ 紧急', low:'↓ 低'};
-    var priTag = t.priority && t.priority !== 'normal' ? '<span class="priority-tag">' + priMap[t.priority] + '</span>' : '';
+    var priTag = t.priority && t.priority !== 'normal' ? '<span class="tag-pill tag-pri">' + priMap[t.priority] + '</span>' : '';
+    var tags = [repeatIcon, remindTag, priTag].filter(Boolean).join('');
     return '<div class="card ' + (t.status === 'done' ? 'done' : '') + '" draggable="true" data-id="' + t.id + '" data-action="edit" data-task-id="' + t.id + '">' +
-      '<span class="grip">⠿</span>' +
-      '<button class="del" data-action="delete" data-task-id="' + t.id + '">×</button>' +
+      '<button class="del" data-action="delete" data-task-id="' + t.id + '" title="删除">×</button>' +
       resTag +
       '<div class="title">' + WB.hl(WB.esc(t.content), q) + notesIcon + '</div>' +
       (people ? '<div class="meta">' + people + '</div>' : '') +
+      (tags ? '<div class="tags-row">' + tags + '</div>' : '') +
       '<div class="foot">' +
       '<span class="status" data-s="' + stKey + '" data-action="status" data-task-id="' + t.id + '">' +
       '<span class="sd"></span>' + st.n +
       '</span>' +
-      '<span style="display:flex;gap:6px;align-items:center">' + repeatIcon + remindTag + priTag + '</span>' +
       '</div></div>';
   };
 

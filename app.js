@@ -145,6 +145,16 @@ window.WB = window.WB || {};
       });
     }
 
+    // 仓库链接
+    var repoBtn = document.getElementById('btnRepoLink');
+    if (repoBtn) {
+      repoBtn.addEventListener('click', function() {
+        if (window.electronAPI && window.electronAPI.openURL) {
+          window.electronAPI.openURL('https://github.com/smwyylc/weekly-work-board');
+        }
+      });
+    }
+
     // 关于弹窗
     var closeAboutBtn = document.querySelector('[data-close="about-modal"]');
     if (closeAboutBtn) closeAboutBtn.addEventListener('click', WB.closeAbout);
@@ -304,8 +314,8 @@ window.WB = window.WB || {};
         if (!btn) return;
         var ops = WB.extractOpsFromHtml(btn.outerHTML);
         if (ops.length) {
-          WB.execOpsWithDetail(ops);
-          WB.showOpsBar(ops, true);
+          var summaries = WB.execOpsWithDetail(ops);
+          WB.showOpsBar(ops, summaries);
         }
       });
     }
