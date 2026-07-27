@@ -37,7 +37,12 @@ function render(){
   const q=sq?(sq.value.trim().toLowerCase()):'';
   const match=(t)=>!q||t.content.toLowerCase().includes(q)||(t.people||[]).some(p=>p.toLowerCase().includes(q));
   const priOrder={urgent:0,normal:1,low:2};
+  const statusOrder={doing:0,todo:1,blocked:2,done:3};
   const sortTasks=(a,b)=>{
+    // 未完成优先（doing > todo > blocked > done）
+    const sa=statusOrder[a.status]??99,sb=statusOrder[b.status]??99;
+    if(sa!==sb)return sa-sb;
+    // 同状态内按优先级
     const pa=priOrder[a.priority]||1,pb=priOrder[b.priority]||1;
     if(pa!==pb)return pa-pb;
     // 有提醒的排前面
@@ -45,7 +50,8 @@ function render(){
     if(ra!==rb)return rb-ra;
     // 提醒时间早的排前面
     if(a.remindAt&&b.remindAt&&a.remindAt!==b.remindAt)return a.remindAt<b.remindAt?-1:1;
-    return (a.order||a.createdAt)-(b.order||b.createdAt);
+    const ao=a.order||a.createdAt||0,bo=b.order||b.createdAt||0;
+    return ao-bo;
   };
   let html='';
   const todayKey=['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
@@ -565,7 +571,7 @@ async function sendChat(){
 }
 
 // ============ 周报 ============
-function generateReport(){
+function generateReport(/* optional */ customTemplate){
   const wk=weekKey(viewWeekStart);
   const end=addDays(viewWeekStart,weekMode===7?6:4);
   const weekStr=`${viewWeekStart.getMonth()+1}/${viewWeekStart.getDate()} - ${end.getMonth()+1}/${end.getDate()}`;
@@ -585,18 +591,13 @@ function generateReport(){
     if(list.length)daySummary+=`${byDay[d.k]||d.k}：${list.map(t=>t.content+(t.status!=='todo'?'('+STATUS[t.status].n+')':'')).join('、')}\n`;
   });
   vars.daySummary=daySummary||'（本周暂无任务安排）';
-  const tmpl=reportTemplate||DEFAULT_REPORT_TEMPLATE;
-  const text=tmpl.replace(/\{\{(\w+)\}\}/g,(_,k)=>vars[k]!==undefined?vars[k]:'{{'+k+'}}');
-  // 直接填入 AI 输入框
-  const el=document.getElementById('ai-text');
-  el.value=text;
-  el.focus();
-  pushSysMsg('📊 周报模板已填入，可修改后按 Enter 发送');
+  const tmpl=customTemplate||reportTemplate||DEFAULT_REPORT_TEMPLATE;
+  return tmpl.replace(/\{\{(\w+)\}\}/g,(_,k)=>vars[k]!==undefined?vars[k]:'{{'+k+'}}');
 }
 function saveTemplate(){
   reportTemplate=document.getElementById('report-text').value.trim();
   save();
-  pushSysMsg('💾 模板已保存');
+  pushSysMsg('💾 周报模板已保存');
 }
 function resetTemplate(){
   reportTemplate='';
@@ -604,10 +605,18 @@ function resetTemplate(){
   document.getElementById('report-text').value=DEFAULT_REPORT_TEMPLATE;
   pushSysMsg('🔄 已恢复默认模板');
 }
-function openTemplateEditor(){
+function openReportEditor(){
   document.getElementById('report-text').value=reportTemplate||DEFAULT_REPORT_TEMPLATE;
   document.getElementById('report-overlay').classList.add('show');
   setTimeout(()=>document.getElementById('report-text').focus(),80);
+}
+function sendReport(){
+  const tmpl=document.getElementById('report-text')?.value.trim();
+  const text=generateReport(tmpl||undefined);
+  const el=document.getElementById('ai-text');
+  el.value=text;
+  document.getElementById('report-overlay').classList.remove('show');
+  sendChat();
 }
 
 function getVisibleTasksJSON(){
@@ -716,11 +725,11 @@ function bindEvents(){
   });
   document.getElementById('btn-newtask').addEventListener('click',()=>openTaskModal(null));
   document.getElementById('btn-nextweek').addEventListener('click',carryOverToNextWeek);
-  document.getElementById('btn-report').addEventListener('click',generateReport);
+  document.getElementById('btn-report').addEventListener('click',openReportEditor);
   document.querySelector('[data-action="save-template"]').addEventListener('click',saveTemplate);
   document.querySelector('[data-action="reset-template"]').addEventListener('click',resetTemplate);
-  document.querySelector('[data-close="report-modal"]')?.addEventListener('click',()=>document.getElementById('report-overlay').classList.remove('show'));
-  document.getElementById('ai-template')?.addEventListener('click',openTemplateEditor);
+  document.querySelector('[data-action="send-report"]')?.addEventListener('click',sendReport);
+  document.getElementById('ai-template')?.addEventListener('click',openReportEditor);
 
 
 
@@ -741,7 +750,7 @@ function bindEvents(){
   // 任务弹窗
   document.getElementById('task-del').addEventListener('click',deleteCurrent);
   document.querySelectorAll('[data-close="task-modal"]').forEach(b=>b.addEventListener('click',closeTaskModal));
-  document.querySelector('[data-action="save-task"]').addEventListener('click',saveTask);
+  document.querySelector('[data-action="save-task"]')?.addEventListener('click',saveTask);
 
   // 更多选项折叠
   const toggleBtn=document.getElementById('task-toggle-extra');
@@ -758,7 +767,7 @@ function bindEvents(){
 
   // 设置弹窗
   document.querySelectorAll('[data-close="set-modal"]').forEach(b=>b.addEventListener('click',closeSettings));
-  document.querySelector('[data-action="save-settings"]').addEventListener('click',saveSettings);
+  document.querySelector('[data-action="save-settings"]')?.addEventListener('click',saveSettings);
   document.getElementById('s-export')?.addEventListener('click',()=>{closeSettings();setTimeout(exportData,100)});
   document.getElementById('s-about')?.addEventListener('click',()=>{closeSettings();setTimeout(openAbout,100)});
   // AI 预设切换
@@ -959,7 +968,7 @@ function processRecurring(){
           next.setDate(next.getDate()+1);
           const nk=['sun','mon','tue','wed','thu','fri','sat'][next.getDay()];
           if(nk!=='sat'&&nk!=='sun'){ // 跳过周末
-            tasks.push({id:uid(),content:t.content,people:[...t.people],status:'todo',day:nk,
+            tasks.push({id:uid(),content:t.content,people:t.people?[...t.people]:[],status:'todo',day:nk,
               remindAt:t.remindAt,repeat:origRepeat,order:Date.now(),weekKey:weekKey(next),createdAt:Date.now()});
             changed=true;
             break;
@@ -972,7 +981,7 @@ function processRecurring(){
         let d=(targetDay-nextWeek.getDay()+7)%7;
         if(d===0)d=7; // 如果今天就是目标天，跳到下周
         nextWeek.setDate(nextWeek.getDate()+d);
-        tasks.push({id:uid(),content:t.content,people:[...t.people],status:'todo',day:origRepeat,
+        tasks.push({id:uid(),content:t.content,people:t.people?[...t.people]:[],status:'todo',day:origRepeat,
           remindAt:t.remindAt,repeat:origRepeat,order:Date.now(),weekKey:weekKey(nextWeek),createdAt:Date.now()});
         changed=true;
       }
