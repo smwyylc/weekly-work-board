@@ -100,6 +100,7 @@
   }
   .btn.ghost-btn:hover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
   .btn .ic{font-size:14px; line-height:1}
+  .btn svg{flex:none}
 
   /* ---------- Body split ---------- */
   .body{flex:1; display:grid; grid-template-columns:1fr var(--ai-width,360px); min-height:0}
@@ -117,7 +118,7 @@
   }
   .search input::placeholder{color:var(--muted-2)}
   .search input:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
-  .search .si{position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted-2); font-size:12px; pointer-events:none}
+  .search .si{position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted-2); pointer-events:none; line-height:1}
   .today{
     margin-left:auto; display:flex; align-items:center; gap:10px;
     font-size:12px; color:var(--ink-2);
@@ -132,11 +133,12 @@
     align-items:start; min-height:calc(100% - 64px);
   }
   .col{display:flex; flex-direction:column; min-height:240px;
-    border-left:1px solid transparent; padding-left:12px; position:relative;
+    background:var(--col-bg, #f7f8fa); border:1px solid var(--line-2); border-radius:10px;
+    padding:8px 10px 10px; position:relative;
     animation:rise .5s cubic-bezier(.2,.7,.2,1) both;
     container-type:inline-size;
   }
-  .col + .col{border-left-color:var(--line-2)}
+  .col + .col{}
   .col.drag-over{background:linear-gradient(var(--accent-soft),transparent); border-radius:10px}
   .col.residue{border-left-color:transparent}
   .col-head{
@@ -155,11 +157,17 @@
   /* ---------- Card ---------- */
   .card{
     position:relative; background:var(--surface); border:1px solid var(--line);
-    border-radius:var(--r); padding:9px 10px 8px; cursor:grab;
-    box-shadow:var(--shadow-sm); transition:transform .16s, box-shadow .16s, border-color .16s;
+    border-radius:var(--r); padding:9px 10px 8px 13px; cursor:grab;
+    box-shadow:0 1px 0 #fff inset,0 2px 6px rgba(20,23,28,.05),0 12px 24px -16px rgba(20,23,28,.28);
+    transition:transform .18s, box-shadow .18s, border-color .18s;
     animation:rise .45s cubic-bezier(.2,.7,.2,1) both;
   }
-  .card:hover{transform:translateY(-2px); box-shadow:var(--shadow-md); border-color:#d7dadd}
+  .card:hover{transform:translateY(-2px);
+    box-shadow:0 1px 0 #fff inset,0 8px 18px rgba(20,23,28,.08),0 22px 40px -20px rgba(20,23,28,.35);
+    border-color:#d7dadd}
+  .card::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--line)}
+  .card.pri-urgent::before{background:var(--s-block)}
+  .card.pri-high::before{background:var(--residue)}
   .card:active{cursor:grabbing}
   .card.dragging{opacity:.45; transform:rotate(1.2deg) scale(.99)}
   .card .del{
@@ -207,23 +215,22 @@
   .status{
     display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none;
     font-size:clamp(8px,5.5cqw,11px); font-weight:600; color:var(--ink-2);
-    background:var(--surface-2); border:1px solid var(--line-2);
     padding:2px 7px 2px 6px; border-radius:999px; transition:.16s;
     white-space:nowrap;
   }
-  .status:hover{border-color:#d7dadd}
+  .status:hover{filter:brightness(.94)}
   .status .sd{width:6px;height:6px;border-radius:50%;background:var(--s-todo)}
+  .status[data-s="doing"]{background:rgba(37,99,168,.12); color:#1f54c8}
   .status[data-s="doing"] .sd{background:var(--s-doing)}
+  .status[data-s="block"]{background:rgba(194,69,58,.12); color:var(--s-block)}
   .status[data-s="block"] .sd{background:var(--s-block)}
-  .status[data-s="done"]  .sd{background:var(--s-done)}
-  .status[data-s="doing"]{color:var(--s-doing)}
-  .status[data-s="block"]{color:var(--s-block)}
-  .status[data-s="done"] {color:var(--s-done)}
+  .status[data-s="done"]{background:rgba(15,118,110,.12); color:var(--accent-ink)}
+  .status[data-s="done"] .sd{background:var(--s-done)}
+  .status[data-s="todo"]{background:rgba(120,128,140,.12); color:#5b636f}
   .card .notes-icon{font-size:clamp(8px,5cqw,11px);margin-left:3px;opacity:.5;vertical-align:middle}
 
-  /* residue 卡的极淡语义底 */
+  /* residue 卡 */
   .col.residue .card{background:linear-gradient(180deg,#fffdfb,#fff); border-color:#ecdcc6}
-  .col.residue .card::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:2px;border-radius:2px;background:var(--residue)}
 
   /* ghost add row */
   .addrow{
@@ -423,6 +430,14 @@
 </style>
 </head>
 <body>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0">
+  <symbol id="s-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="s-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="s-ff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5M6 17l5-5-5-5"/></symbol>
+  <symbol id="s-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="s-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9.4a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4.5a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 11h.1a2 2 0 0 1 0 4z"/></symbol>
+  <symbol id="s-repo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+</svg>
 <div class="app">
 
   <!-- ===== App bar ===== -->
@@ -439,11 +454,11 @@
       <span class="range" id="weekRange">07/27 – 07/31</span>
     </nav>
     <div class="actions">
-      <button class="btn" id="btnNewTask"><span class="ic">＋</span>新建任务</button>
-      <button class="btn icon" id="btnReport" title="周报">▤</button>
-      <button class="btn ghost-btn" id="btnNextWeek">进入下周 <span class="ic">⏭</span></button>
-      <button class="btn icon" id="btnToggleAi" title="切换 AI 面板" style="font-size:13px">💬</button>
-      <button class="btn icon" id="btnSettings" title="设置">⚙</button>
+      <button class="btn" id="btnNewTask"><svg width="13" height="13" style="margin-right:4px"><use href="#s-plus"/></svg>新建任务</button>
+      <button class="btn icon" id="btnReport" title="周报"><svg width="15" height="15"><use href="#s-ff"/></svg></button>
+      <button class="btn ghost-btn" id="btnNextWeek">进入下周 <svg width="14" height="14" style="margin-left:3px"><use href="#s-ff"/></svg></button>
+      <button class="btn icon" id="btnToggleAi" title="切换 AI 面板"><svg width="15" height="15"><use href="#s-chat"/></svg></button>
+      <button class="btn icon" id="btnSettings" title="设置"><svg width="15" height="15"><use href="#s-gear"/></svg></button>
     </div>
   </header>
 
@@ -454,7 +469,7 @@
     <main class="board-wrap">
       <div class="toolbar">
         <div class="search">
-          <span class="si">⌕</span>
+          <span class="si"><svg width="14" height="14" style="display:block"><use href="#s-search"/></svg></span>
           <input id="searchInput" type="text" placeholder="搜索任务内容 / 人员…" />
         </div>
         <div class="today" id="todayBar">
@@ -471,7 +486,7 @@
       <div class="ai-head">
         <div class="t"><span class="spark">✦</span> AI 任务助手</div>
         <div style="display:flex;gap:6px">
-          <button class="new" id="newChat" title="新会话">＋</button>
+          <button class="new" id="newChat" title="新会话"><svg width="14" height="14"><use href="#s-plus"/></svg></button>
         </div>
       </div>
       <div class="ai-body" id="aiBody">

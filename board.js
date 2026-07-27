@@ -102,9 +102,11 @@ window.WB = window.WB || {};
       return ({'daily':'每日', mon:'周一', tue:'周二', wed:'周三', thu:'周四', fri:'周五'}[r.trim()] || r.trim());
     }).join('·') + '</span>' : '';
     var priMap = {urgent:'↑ 紧急', low:'↓ 低'};
+    var priCls = t.priority === 'urgent' ? ' pri-urgent' : (t.priority === 'low' ? '' : ''); 
+    // high priority (非紧急但设置了重要): 无对应 priority 值，根据 urgency 判断; 这里暂用 high 表示非 low/非 normal
     var priTag = t.priority && t.priority !== 'normal' ? '<span class="tag-pill tag-pri">' + priMap[t.priority] + '</span>' : '';
     var tags = [repeatIcon, remindTag, priTag].filter(Boolean).join('');
-    return '<div class="card ' + (t.status === 'done' ? 'done' : '') + '" draggable="true" data-id="' + t.id + '" data-action="edit" data-task-id="' + t.id + '">' +
+    return '<div class="card' + (t.status === 'done' ? ' done' : '') + priCls + '" draggable="true" data-id="' + t.id + '" data-action="edit" data-task-id="' + t.id + '">' +
       '<button class="del" data-action="delete" data-task-id="' + t.id + '" title="删除">×</button>' +
       resTag +
       '<div class="title">' + WB.hl(WB.esc(t.content), q) + '</div>' +
