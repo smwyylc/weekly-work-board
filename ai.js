@@ -369,7 +369,7 @@ window.WB = window.WB || {};
           if (summaries && summaries.length) {
             var note = document.createElement('div');
             note.className = 'ops-note';
-            note.textContent = summaries.join(' · ');
+            note.innerHTML = summaries.map(function(s){return WB.esc(s);}).join('<br>');
             var chat = document.getElementById('aiBody');
             chat.insertBefore(note, aiBubble.nextSibling);
           }
@@ -415,7 +415,7 @@ window.WB = window.WB || {};
         if (summaries2 && summaries2.length) {
           var note2 = document.createElement('div');
           note2.className = 'ops-note';
-          note2.textContent = summaries2.join(' · ');
+          note2.innerHTML = summaries2.map(function(s){return WB.esc(s);}).join('<br>');
           document.getElementById('aiBody').insertBefore(note2, aiBubble2.nextSibling);
         }
       }
