@@ -14,6 +14,8 @@ let aiSettings={...DEFAULT_AI};
 let autoStart=false;
 let weekMode=5;
 let chatHistory=[];
+let reportTemplate='';
+const DEFAULT_REPORT_TEMPLATE='请帮我生成一份本周（{{week}}）的工作周报，按日期列出已完成和进行中的任务，最后给出总结和建议。\n\n任务统计：\n- 已完成：{{done}}项\n- 进行中：{{doing}}项\n- 待开始：{{todo}}项\n- 阻塞：{{blocked}}项\n- 残留任务：{{residual}}项\n\n详细任务：\n{{daySummary}}\n\n要求：用中文简洁格式，分「本周完成」「进行中」「下周计划」三段，不加json。';
 
 // ============ 工具 ============
 function getMonday(d){const x=new Date(d);const day=x.getDay();const diff=day===0?-6:1-day;x.setDate(x.getDate()+diff);x.setHours(0,0,0,0);return x}
@@ -25,8 +27,8 @@ function esc(s){return (s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':
 function hl(s,q){if(!s||!q)return s;const ls=s.toLowerCase();let out='',i=0,k=ls.indexOf(q);while(k>=0){out+=s.slice(i,k)+'<mark>'+s.slice(k,k+q.length)+'</mark>';i=k+q.length;k=ls.indexOf(q,i)}return out+s.slice(i)}
 
 // ============ 存储 ============
-function load(){try{tasks=JSON.parse(localStorage.getItem('ww_tasks')||'[]')}catch(e){tasks=[]}try{aiSettings={...DEFAULT_AI,...JSON.parse(localStorage.getItem('ww_ai')||'{}')}}catch(e){aiSettings={...DEFAULT_AI}}try{const cfg=JSON.parse(localStorage.getItem('ww_cfg')||'{}');autoStart=!!cfg.autoStart;weekMode=cfg.weekMode||5}catch(e){autoStart=false;weekMode=5}try{chatHistory=JSON.parse(localStorage.getItem('ww_chat')||'[]').slice(-30)}catch(e){chatHistory=[]}}
-function save(){localStorage.setItem('ww_tasks',JSON.stringify(tasks));localStorage.setItem('ww_ai',JSON.stringify(aiSettings));localStorage.setItem('ww_cfg',JSON.stringify({autoStart,weekMode}));localStorage.setItem('ww_chat',JSON.stringify(chatHistory.slice(-30)))}
+function load(){try{tasks=JSON.parse(localStorage.getItem('ww_tasks')||'[]')}catch(e){tasks=[]}try{aiSettings={...DEFAULT_AI,...JSON.parse(localStorage.getItem('ww_ai')||'{}')}}catch(e){aiSettings={...DEFAULT_AI}}try{const cfg=JSON.parse(localStorage.getItem('ww_cfg')||'{}');autoStart=!!cfg.autoStart;weekMode=cfg.weekMode||5}catch(e){autoStart=false;weekMode=5}try{chatHistory=JSON.parse(localStorage.getItem('ww_chat')||'[]').slice(-30)}catch(e){chatHistory=[]}reportTemplate=localStorage.getItem('ww_report_template')||''}
+function save(){localStorage.setItem('ww_tasks',JSON.stringify(tasks));localStorage.setItem('ww_ai',JSON.stringify(aiSettings));localStorage.setItem('ww_cfg',JSON.stringify({autoStart,weekMode}));localStorage.setItem('ww_chat',JSON.stringify(chatHistory.slice(-30)));if(reportTemplate)localStorage.setItem('ww_report_template',reportTemplate);else localStorage.removeItem('ww_report_template')}
 
 // ============ 渲染看板 ============
 function render(){
@@ -253,6 +255,7 @@ async function openSettings(){
   if(window.electronAPI){try{on=await window.electronAPI.getAutoStart()}catch(e){}}
   document.getElementById('s-autostart').checked=on;
   document.getElementById('s-weekmode').value=String(weekMode);
+  document.getElementById('s-template').value=reportTemplate;
   document.getElementById('set-overlay').classList.add('show');
 }
 function closeSettings(){document.getElementById('set-overlay').classList.remove('show')}
@@ -265,6 +268,7 @@ async function saveSettings(){
   autoStart=want;
   const newWeek=parseInt(document.getElementById('s-weekmode').value)||5;
   if(newWeek!==weekMode){weekMode=newWeek;render()}
+  reportTemplate=document.getElementById('s-template').value.trim();
   save();
   closeSettings();
   pushSysMsg('设置已保存'+(want?'，已开启开机自启动':''));
@@ -495,23 +499,41 @@ function generateReport(){
   const end=addDays(viewWeekStart,weekMode===7?6:4);
   const weekStr=`${viewWeekStart.getMonth()+1}/${viewWeekStart.getDate()} - ${end.getMonth()+1}/${end.getDate()}`;
   const all=tasks.filter(t=>t.weekKey===wk);
-  const done=all.filter(t=>t.status==='done');
-  const doing=all.filter(t=>t.status==='doing');
-  const todo=all.filter(t=>t.status==='todo');
-  const blocked=all.filter(t=>t.status==='blocked');
-  const residual=tasks.filter(t=>t.weekKey<=wk&&t.day===null&&t.status!=='done');
+  const vars={
+    week:weekStr,
+    done:String(all.filter(t=>t.status==='done').length),
+    doing:String(all.filter(t=>t.status==='doing').length),
+    todo:String(all.filter(t=>t.status==='todo').length),
+    blocked:String(all.filter(t=>t.status==='blocked').length),
+    residual:String(tasks.filter(t=>t.weekKey<=wk&&t.day===null&&t.status!=='done').length)
+  };
   const byDay={mon:'周一',tue:'周二',wed:'周三',thu:'周四',fri:'周五',sat:'周六',sun:'周日'};
   let daySummary='';
-  const days=getDays();
-  days.forEach(d=>{
+  getDays().forEach(d=>{
     const list=all.filter(t=>t.day===d.k);
     if(list.length)daySummary+=`${byDay[d.k]||d.k}：${list.map(t=>t.content+(t.status!=='todo'?'('+STATUS[t.status].n+')':'')).join('、')}\n`;
   });
-  const text=`请帮我生成一份本周（${weekStr}）的工作周报，按日期列出已完成和进行中的任务，最后给出总结和建议。\n\n任务统计：\n- 已完成：${done.length}项\n- 进行中：${doing.length}项\n- 待开始：${todo.length}项\n- 阻塞：${blocked.length}项\n- 残留任务：${residual.length}项\n\n详细任务：\n${daySummary||'（本周暂无任务安排）'}\n\n要求：用中文简洁格式，分「本周完成」「进行中」「下周计划」三段，不加json。`;
-  // 弹出编辑框，用户可修改提示词
+  vars.daySummary=daySummary||'（本周暂无任务安排）';
+  // 渲染模板
+  const tmpl=reportTemplate||DEFAULT_REPORT_TEMPLATE;
+  const text=tmpl.replace(/\{\{(\w+)\}\}/g,(_,k)=>vars[k]!==undefined?vars[k]:'{{'+k+'}}');
   document.getElementById('report-text').value=text;
   document.getElementById('report-overlay').classList.add('show');
   setTimeout(()=>document.getElementById('report-text').focus(),80);
+}
+function saveReportTemplate(){
+  reportTemplate=document.getElementById('report-text').value.trim();
+  save();
+  pushSysMsg('💾 周报模板已保存');
+}
+function resetReportTemplate(){
+  reportTemplate='';
+  save();
+  const wk=weekKey(viewWeekStart);
+  const end=addDays(viewWeekStart,weekMode===7?6:4);
+  const weekStr=`${viewWeekStart.getMonth()+1}/${viewWeekStart.getDate()} - ${end.getMonth()+1}/${end.getDate()}`;
+  document.getElementById('report-text').value=DEFAULT_REPORT_TEMPLATE.replace(/\{\{week\}\}/g,weekStr).replace(/\{\{(?!week\})\w+\}\}/g,'');
+  pushSysMsg('🔄 已恢复默认模板');
 }
 function sendReport(){
   const text=document.getElementById('report-text').value.trim();
@@ -588,6 +610,8 @@ function bindEvents(){
   document.getElementById('btn-nextweek').addEventListener('click',carryOverToNextWeek);
   document.getElementById('btn-report').addEventListener('click',generateReport);
   document.querySelector('[data-action="send-report"]').addEventListener('click',sendReport);
+  document.querySelector('[data-action="save-template"]').addEventListener('click',saveReportTemplate);
+  document.querySelector('[data-action="reset-template"]').addEventListener('click',resetReportTemplate);
   document.querySelector('[data-close="report-modal"]').addEventListener('click',()=>document.getElementById('report-overlay').classList.remove('show'));
 
   // 搜索框
