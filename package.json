@@ -1,0 +1,43 @@
+{
+  "name": "weekly-work-board",
+  "version": "1.0.2",
+  "description": "本周工作安排 - 桌面应用（Electron）",
+  "main": "main.js",
+  "author": "WorkBuddy",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.workbuddy.weeklyworkboard",
+    "productName": "WeeklyWorkBoard",
+    "copyright": "Copyright © 2026",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "本周工作安排"
+    },
+    "files": [
+      "index.html",
+      "main.js",
+      "preload.js",
+      "app.js"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}
