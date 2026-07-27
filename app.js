@@ -170,6 +170,10 @@ window.WB = window.WB || {};
       });
     }
 
+    // 关于按钮（顶栏）
+    var aboutBtn = document.getElementById('btnAbout');
+    if (aboutBtn) aboutBtn.addEventListener('click', WB.openAbout);
+
     // 关于弹窗
     var closeAboutBtn = document.querySelector('[data-close="about-modal"]');
     if (closeAboutBtn) closeAboutBtn.addEventListener('click', WB.closeAbout);

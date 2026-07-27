@@ -101,7 +101,6 @@
   .btn.ghost-btn:hover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
   .btn .ic{font-size:14px; line-height:1}
   .btn svg{flex:none}
-  .proj-tag{font-family:var(--mono); font-size:10px; font-weight:700; color:var(--muted); letter-spacing:.3px}
 
   /* ---------- Body split ---------- */
   .body{flex:1; display:grid; grid-template-columns:1fr var(--ai-width,360px); min-height:0}
@@ -433,6 +432,7 @@
   <symbol id="s-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
   <symbol id="s-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9.4a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4.5a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 11h.1a2 2 0 0 1 0 4z"/></symbol>
   <symbol id="s-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></symbol>
+  <symbol id="s-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
 </svg>
 <div class="app">
 
@@ -452,7 +452,7 @@
     <div class="actions">
       <button class="btn" id="btnNewTask"><svg width="13" height="13" style="margin-right:4px"><use href="#s-plus"/></svg>新建任务</button>
       <button class="btn icon" id="btnReport" title="周报"><svg width="15" height="15"><use href="#s-doc"/></svg></button>
-      <span class="proj-tag">WIP</span>
+      <button class="btn icon" id="btnAbout" title="关于"><svg width="15" height="15"><use href="#s-info"/></svg></button>
       <button class="btn ghost-btn" id="btnNextWeek">进入下周 <svg width="14" height="14" style="margin-left:3px"><use href="#s-ff"/></svg></button>
       <button class="btn icon" id="btnToggleAi" title="切换 AI 面板"><svg width="15" height="15"><use href="#s-chat"/></svg></button>
       <button class="btn icon" id="btnSettings" title="设置"><svg width="15" height="15"><use href="#s-gear"/></svg></button>
