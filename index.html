@@ -84,6 +84,9 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
 .t-repeat,.t-remind{font-size:10px;padding:1px 6px;border-radius:4px;display:inline-flex;align-items:center;gap:3px;font-weight:500}
 .t-repeat{color:var(--primary);background:var(--primary-soft)}
 .t-remind{color:var(--warn);background:rgba(255,149,0,.08)}
+.t-priority{font-size:10px;padding:1px 6px;border-radius:4px;display:inline-flex;align-items:center;gap:3px;font-weight:600}
+.t-priority.urgent{color:#fff;background:var(--danger)}
+.t-priority.low{color:var(--text2);background:#f0f0f0}
 
 /* AI 对话栏 */
 #ai{width:330px;background:var(--card);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s}
@@ -288,6 +291,14 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
         </select>
       </div>
       <div class="row">
+        <label>优先级</label>
+        <select id="f-priority">
+          <option value="low">低</option>
+          <option value="normal" selected>一般</option>
+          <option value="urgent">紧急</option>
+        </select>
+      </div>
+      <div class="row">
         <label>关联人员（逗号分隔）</label>
         <input id="f-people" placeholder="张三, 李四" />
       </div>
@@ -321,9 +332,8 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
       <button id="task-toggle-extra" type="button" style="background:none;border:none;color:var(--text2);font-size:12px;cursor:pointer;padding:4px">📋 更多选项</button>
     </div>
     <div class="modal-actions">
-      <button class="btn-flex danger" id="task-del" style="display:none">删除</button>
-      <button class="btn-flex ghost" data-close="task-modal">取消</button>
-      <button class="btn-flex primary" data-action="save-task">保存</button>
+      <button class="btn-flex danger" id="task-del" style="display:none">🗑 删除</button>
+      <button class="btn-flex primary" data-action="save-task">✅ 完成</button>
     </div>
   </div>
 </div>
@@ -392,16 +402,6 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
     </div>
 
     <div class="set-section">
-      <h3>📊 周报模板</h3>
-      <div class="row">
-        <label>自定义提示词模板</label>
-        <textarea id="s-template" style="width:100%;height:120px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;outline:none;resize:vertical;background:var(--card);color:var(--text);line-height:1.5" placeholder="留空则使用默认模板"></textarea>
-        <div class="hint">支持 <code>{{week}}</code> <code>{{done}}</code> <code>{{doing}}</code> <code>{{todo}}</code> <code>{{blocked}}</code> <code>{{residual}}</code> <code>{{daySummary}}</code> 变量</div>
-        <div style="margin-top:6px"><button class="btn" id="s-template-reset" style="border:1px solid var(--border);padding:4px 10px;border-radius:5px;font-size:12px;cursor:pointer;background:var(--card);color:var(--text2)">🔄 恢复默认模板</button></div>
-      </div>
-    </div>
-
-    <div class="set-section">
       <h3>更新</h3>
       <div class="set-row">
         <div>
@@ -450,6 +450,7 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
         <span style="display:inline-block;width:130px">Ctrl+N</span> 新建任务<br>
         <span style="display:inline-block;width:130px">Ctrl+F</span> 聚焦搜索<br>
         <span style="display:inline-block;width:130px">Ctrl+Z</span> 撤销操作<br>
+        <span style="display:inline-block;width:130px">Ctrl+Y</span> 重做操作<br>
         <span style="display:inline-block;width:130px">Enter</span> 发送消息<br>
         <span style="display:inline-block;width:130px">Shift+Enter</span> 换行
       </div>
@@ -499,10 +500,12 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
 <!-- 周报编辑弹窗 -->
 <div class="overlay" id="report-overlay">
   <div class="modal" style="width:600px">
-    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">📊 周报提示词</h2>
-    <div style="margin-bottom:8px;font-size:12px;color:var(--text2)">支持变量：<code>{{week}}</code> <code>{{done}}</code> <code>{{doing}}</code> <code>{{todo}}</code> <code>{{blocked}}</code> <code>{{residual}}</code> <code>{{daySummary}}</code> —— 自定义模板请在 ⚙ 设置中编辑</div>
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">📊 周报模板</h2>
+    <div style="margin-bottom:8px;font-size:12px;color:var(--text2)">支持变量：<code>{{week}}</code> <code>{{done}}</code> <code>{{doing}}</code> <code>{{todo}}</code> <code>{{blocked}}</code> <code>{{residual}}</code> <code>{{daySummary}}</code></div>
     <textarea id="report-text" style="width:100%;height:260px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;resize:vertical;background:var(--card);color:var(--text);line-height:1.6"></textarea>
     <div class="modal-actions" style="margin-top:12px">
+      <button class="btn-flex ghost" data-action="reset-template">🔄 恢复默认</button>
+      <button class="btn-flex ghost" data-action="save-template">💾 保存模板</button>
       <button class="btn-flex ghost" data-close="report-modal">取消</button>
       <button class="btn-flex primary" data-action="send-report" style="background:var(--primary);color:#fff">✅ 发送给 AI</button>
     </div>

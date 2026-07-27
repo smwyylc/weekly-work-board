@@ -37,18 +37,29 @@ function render(){
   const sq=document.getElementById('search-input');
   const q=sq?(sq.value.trim().toLowerCase()):'';
   const match=(t)=>!q||t.content.toLowerCase().includes(q)||(t.people||[]).some(p=>p.toLowerCase().includes(q));
+  const priOrder={urgent:0,normal:1,low:2};
+  const sortTasks=(a,b)=>{
+    const pa=priOrder[a.priority]||1,pb=priOrder[b.priority]||1;
+    if(pa!==pb)return pa-pb;
+    // 有提醒的排前面
+    const ra=a.remindAt?1:0,rb=b.remindAt?1:0;
+    if(ra!==rb)return rb-ra;
+    // 提醒时间早的排前面
+    if(a.remindAt&&b.remindAt&&a.remindAt!==b.remindAt)return a.remindAt<b.remindAt?-1:1;
+    return (a.order||a.createdAt)-(b.order||b.createdAt);
+  };
   let html='';
   const todayKey=['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
   const isThisWeek=weekKey(new Date())===wk;
   const days=getDays();
 
   days.forEach(d=>{
-    const list=tasks.filter(t=>t.weekKey===wk&&t.day===d.k&&match(t)).sort((a,b)=>(a.order||a.createdAt)-(b.order||b.createdAt));
+    const list=tasks.filter(t=>t.weekKey===wk&&t.day===d.k&&match(t)).sort(sortTasks);
     const todayCls=isThisWeek&&d.k===todayKey?' col-today':'';
     html+=colHtml(d.n,list,d.k,false,q,todayCls);
   });
   // 残留列
-  const res=tasks.filter(t=>t.day===null&&t.status!=='done'&&t.weekKey<=wk&&match(t)).sort((a,b)=>(a.order||a.createdAt)-(b.order||b.createdAt));
+  const res=tasks.filter(t=>t.day===null&&t.status!=='done'&&t.weekKey<=wk&&match(t)).sort(sortTasks);
   html+=colHtml('残留任务',res,null,true,q);
 
   board.innerHTML=html;
@@ -129,13 +140,18 @@ function taskHtml(t,q){
   const remindTag=t.remindAt?`<span class="t-remind">⏰ ${t.remindAt}</span>`:'';
   const repeatIcon=t.repeat?`<span class="t-repeat">↻ ${{'daily':'每日',mon:'每周一',tue:'每周二',wed:'每周三',thu:'每周四',fri:'每周五'}[t.repeat]||t.repeat}</span>`:'';
   const notesIcon=t.notes?`<span class="t-notes-icon">📎</span>`:'';
+  const priMap={urgent:'↑ 紧急',low:'↓ 低'};
+  const priTag=t.priority&&t.priority!=='normal'?`<span class="t-priority ${t.priority}">${priMap[t.priority]}</span>`:'';
   return `<div class="task ${t.status==='done'?'done':''}" draggable="true" data-id="${t.id}" style="border-left-color:${stColor(t.status)}" data-action="edit" data-task-id="${t.id}">
     <button class="del" data-action="delete" data-task-id="${t.id}">✕</button>
     ${resTag}
     <div class="t-content">${hl(esc(t.content),q)}${notesIcon}</div>
     ${people?`<div class="t-people">${people}</div>`:''}
-    ${repeatIcon?`<div class="t-repeat-row">${repeatIcon}</div>`:''}
-    ${remindTag?`<div class="t-remind-row">${remindTag}</div>`:''}
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px">
+    ${repeatIcon?repeatIcon:''}
+    ${remindTag?remindTag:''}
+    ${priTag}
+    </div>
     <div class="t-foot">
       <button class="status-badge ${st.c}" data-action="status" data-task-id="${t.id}">${st.n}</button>
     </div>
@@ -201,6 +217,7 @@ function openTaskModal(day,id){
       document.getElementById('f-remind').value='';
       document.getElementById('f-repeat').value='';
       document.getElementById('f-notes').value='';
+      document.getElementById('f-priority').value='normal';
       pushSysMsg('⚠️ 该任务已不存在，已切换为新建模式');
     }else{
       document.getElementById('f-content').value=t.content;
@@ -210,6 +227,7 @@ function openTaskModal(day,id){
       document.getElementById('f-remind').value=t.remindAt||'';
       document.getElementById('f-repeat').value=t.repeat||'';
       document.getElementById('f-notes').value=t.notes||'';
+      document.getElementById('f-priority').value=t.priority||'normal';
     }
   }else{
     document.getElementById('f-content').value='';
@@ -219,45 +237,42 @@ function openTaskModal(day,id){
     document.getElementById('f-remind').value='';
     document.getElementById('f-repeat').value='';
     document.getElementById('f-notes').value='';
+    document.getElementById('f-priority').value='normal';
   }
   document.getElementById('task-overlay').classList.add('show');
   setTimeout(()=>document.getElementById('f-content').focus(),80);
 }
-function closeTaskModal(){document.getElementById('task-overlay').classList.remove('show')}
-function saveTask(){
+function closeTaskModal(){
+  const content=document.getElementById('f-content').value.trim();
+  if(content) saveTaskData();
+  document.getElementById('task-overlay').classList.remove('show');
+}
+function saveTaskData(){
   saveSnapshot();
   const content=document.getElementById('f-content').value.trim();
-  if(!content){alert('请输入任务内容');return}
+  if(!content)return;
   const day=document.getElementById('f-day').value||null;
   const status=document.getElementById('f-status').value;
   const people=document.getElementById('f-people').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
   const notes=document.getElementById('f-notes').value.trim()||null;
   const remindAt=document.getElementById('f-remind').value||null;
   const repeat=document.getElementById('f-repeat').value||null;
+  const priority=document.getElementById('f-priority').value||'normal';
   if(editingId){
     const t=tasks.find(x=>x.id===editingId);
-    Object.assign(t,{content,day,status,people,remindAt,repeat,notes});
+    Object.assign(t,{content,day,status,people,remindAt,repeat,notes,priority});
     if(day)t.weekKey=weekKey(viewWeekStart);
   }else{
-    tasks.push({id:uid(),content,day,status,people,remindAt,repeat,notes,order:Date.now(),weekKey:weekKey(viewWeekStart),createdAt:Date.now()});
+    tasks.push({id:uid(),content,day,status,people,remindAt,repeat,notes,priority,order:Date.now(),weekKey:weekKey(viewWeekStart),createdAt:Date.now()});
   }
-  save();closeTaskModal();render();
+  save();
+  render();
 }
+function saveTask(){saveTaskData();closeTaskModal()}
 function deleteTask(id){const t=tasks.find(x=>x.id===id);if(!t)return;if(!confirm('确定删除该任务？'))return;saveSnapshot();tasks=tasks.filter(t=>t.id!==id);save();render()}
 function deleteCurrent(){if(editingId)deleteTask(editingId);closeTaskModal()}
 
 // ============ 设置 ============
-async function openSettings(){
-  document.getElementById('s-base').value=aiSettings.base||'';
-  document.getElementById('s-key').value=aiSettings.key||'';
-  document.getElementById('s-model').value=aiSettings.model||'deepseek-v4-flash-free';
-  let on=autoStart;
-  if(window.electronAPI){try{on=await window.electronAPI.getAutoStart()}catch(e){}}
-  document.getElementById('s-autostart').checked=on;
-  document.getElementById('s-weekmode').value=String(weekMode);
-  document.getElementById('s-template').value=reportTemplate;
-  document.getElementById('set-overlay').classList.add('show');
-}
 async function openSettings(){
   // 根据当前配置确定预设
   const base=(aiSettings.base||'').toLowerCase();
@@ -275,7 +290,6 @@ async function openSettings(){
   updateAISummary();
   document.getElementById('s-autostart').checked=autoStart;
   document.getElementById('s-weekmode').value=String(weekMode);
-  document.getElementById('s-template').value=reportTemplate;
   document.getElementById('set-overlay').classList.add('show');
 }
 function updateAISummary(){
@@ -307,7 +321,6 @@ async function saveSettings(){
   autoStart=want;
   const newWeek=parseInt(document.getElementById('s-weekmode').value)||5;
   if(newWeek!==weekMode){weekMode=newWeek;render()}
-  reportTemplate=document.getElementById('s-template').value.trim();
   save();
   closeSettings();
   pushSysMsg('✅ 设置已保存 — '+(preset==='opencode'?'opencode.ai（无需Key）':preset==='deepseek'?'DeepSeek':aiSettings.base));
@@ -447,10 +460,10 @@ ${getVisibleTasksJSON()}
 可用 day：mon(周一) tue(周二) wed(周三) thu(周四) fri(周五) sat(周六) sun(周日)，null（残留/未排期）。当前设置为 ${weekMode} 天工作周。
 
 当用户增删改任务时，在回复末尾附加 \`\`\`json 代码块，包含 operations 数组：
-- {"action":"add","content":"...","people":["..."],"status":"todo|doing|done|blocked","day":"mon"|...|null,"repeat?":"daily|mon|tue|wed|thu|fri","remindAt?":"HH:MM","notes?":"..."}
+- {"action":"add","content":"...","people":["..."],"status":"todo|doing|done|blocked","day":"mon"|...|null,"repeat?":"daily|mon|tue|wed|thu|fri","remindAt?":"HH:MM","notes?":"...","priority?":"low|normal|urgent"}
 - {"action":"move","taskId":"...","day":"mon"|...|null}
-- {"action":"edit","taskId":"...","content?":"...","people?":[...],"day?":"...","repeat?":"...","remindAt?":"HH:MM或null","notes?":"..."}
-- {"action":"status","taskId":"...","status":"done"}
+- {"action":"edit","taskId":"...","content?":"...","people?":[...],"day?":"...","repeat?":"...","remindAt?":"HH:MM或null","notes?":"...","priority?":"low|normal|urgent"}
+- {"action":"status","taskId":"...","status":"todo|doing|done|blocked","notes?":"状态变更原因（可选）"}
 - {"action":"delete","taskId":"..."}
 - {"action":"carryover"}
 
@@ -462,7 +475,8 @@ ${getVisibleTasksJSON()}
 5. 用户说"这个/那个/它"等代词时，根据聊天历史判断是哪个任务，不要猜错。
 6. 当有多个任务名称相似时，务必通过完整任务内容精确匹配，不能混淆。
 7. 用户说"提醒我"或"到时提醒"时，通过 remindAt 字段设置提醒时间（格式 HH:MM，如14:25）。本应用支持到点系统通知，直接设置即可，不要说做不到。
-8. 【重要】JSON 操作块必须用 \`\`\`json 包裹，回复正文中绝对不要出现任何裸露的 JSON 数组或对象。`;
+8. 【重要】JSON 操作块必须用 \`\`\`json 包裹，回复正文中绝对不要出现任何裸露的 JSON 数组或对象。
+9. 优先级默认为一般（normal），除非用户明确说"加急""重要""优先""紧急"等，否则不要主动设置或修改 priority 字段。`;
 }
 async function sendChat(){
   const el=document.getElementById('ai-text');
@@ -579,6 +593,17 @@ function generateReport(){
   document.getElementById('report-overlay').classList.add('show');
   setTimeout(()=>document.getElementById('report-text').focus(),80);
 }
+function saveTemplate(){
+  reportTemplate=document.getElementById('report-text').value.trim();
+  save();
+  pushSysMsg('💾 模板已保存');
+}
+function resetTemplate(){
+  reportTemplate='';
+  save();
+  document.getElementById('report-text').value=DEFAULT_REPORT_TEMPLATE;
+  pushSysMsg('🔄 已恢复默认模板');
+}
 function sendReport(){
   const text=document.getElementById('report-text').value.trim();
   if(!text)return;
@@ -591,7 +616,7 @@ function sendReport(){
 function getVisibleTasksJSON(){
   const wk=weekKey(viewWeekStart);
   const visible=tasks.filter(t=>(t.weekKey===wk&&t.day!==null)||(t.day===null&&t.status!=='done'&&t.weekKey<=wk))
-    .map(t=>({id:t.id,content:t.content,people:t.people,status:t.status,day:t.day,weekKey:t.weekKey,remindAt:t.remindAt||null,repeat:t.repeat||null,notes:t.notes||null}));
+    .map(t=>({id:t.id,content:t.content,people:t.people,status:t.status,day:t.day,weekKey:t.weekKey,remindAt:t.remindAt||null,repeat:t.repeat||null,notes:t.notes||null,priority:t.priority||'normal'}));
   return JSON.stringify(visible,null,2);
 }
 
@@ -625,7 +650,7 @@ function execOpsWithDetail(ops){
   let details=[];
   ops.forEach(op=>{
     if(op.action==='add'){
-      tasks.push({id:uid(),content:op.content,people:op.people||[],status:op.status||'todo',day:op.day??null,remindAt:op.remindAt||null,repeat:op.repeat||null,notes:op.notes||null,order:Date.now(),weekKey:wk,createdAt:Date.now()});
+      tasks.push({id:uid(),content:op.content,people:op.people||[],status:op.status||'todo',day:op.day??null,remindAt:op.remindAt||null,repeat:op.repeat||null,notes:op.notes||null,priority:op.priority||'normal',order:Date.now(),weekKey:wk,createdAt:Date.now()});
       details.push('添加任务「'+(op.content||'').slice(0,20)+'」');
     }else if(op.action==='move'){
       const t=tasks.find(x=>x.id===op.taskId);
@@ -640,18 +665,20 @@ function execOpsWithDetail(ops){
         if(op.remindAt!==undefined)parts.push('提醒→'+op.remindAt);
         if(op.repeat!==undefined)parts.push('重复周期');
         if(op.notes!==undefined)parts.push('备注');
+        if(op.priority!==undefined)parts.push('优先级→'+op.priority);
         if(op.content!=null)t.content=op.content;
         if(op.people!=null)t.people=op.people;
         if(op.day!==undefined){if(op.day)t.weekKey=wk;t.day=op.day??null}
         if(op.remindAt!==undefined)t.remindAt=op.remindAt||null;
         if(op.repeat!==undefined)t.repeat=op.repeat||null;
         if(op.notes!==undefined)t.notes=op.notes||null;
+        if(op.priority!==undefined)t.priority=op.priority;
         t.order=Date.now();
         details.push('修改「'+(t.content||'').slice(0,20)+'」'+(parts.length?'('+parts.join(',')+')':''));
       }
     }else if(op.action==='status'){
       const t=tasks.find(x=>x.id===op.taskId);
-      if(t&&t.status!==op.status){const s=STATUS[t.status]?.n||t.status;t.status=op.status;details.push('「'+(t.content||'').slice(0,20)+'」状态:'+s+'→'+(STATUS[op.status]?.n||op.status))}
+      if(t&&t.status!==op.status){const s=STATUS[t.status]?.n||t.status;t.status=op.status;if(op.notes!==undefined)t.notes=op.notes||null;details.push('「'+(t.content||'').slice(0,20)+'」状态:'+s+'→'+(STATUS[op.status]?.n||op.status)+(op.notes?'('+op.notes.slice(0,15)+')':''))}
     }else if(op.action==='delete'){
       const t=tasks.find(x=>x.id===op.taskId);
       if(t){details.push('删除「'+(t.content||'').slice(0,20)+'」');tasks=tasks.filter(x=>x.id!==op.taskId)}
@@ -669,11 +696,17 @@ function execOpsWithDetail(ops){
 
 // ============ 撤销（全状态快照） ============
 let undoStack=[];
-function saveSnapshot(){undoStack.push(JSON.parse(JSON.stringify(tasks)));if(undoStack.length>20)undoStack.shift()}
+let redoStack=[];
+function saveSnapshot(){undoStack.push(JSON.parse(JSON.stringify(tasks)));if(undoStack.length>20)undoStack.shift();redoStack=[]}
 function undo(){
   const prev=undoStack.pop();
-  if(prev){tasks=prev;save();render();pushSysMsg('✅ 已撤销上一步操作')}
+  if(prev){redoStack.push(JSON.parse(JSON.stringify(tasks)));tasks=prev;save();render();pushSysMsg('↩️ 已撤销')}
   else pushSysMsg('没有可撤销的操作');
+}
+function redo(){
+  const next=redoStack.pop();
+  if(next){undoStack.push(JSON.parse(JSON.stringify(tasks)));tasks=next;save();render();pushSysMsg('↪️ 已重做')}
+  else pushSysMsg('没有可重做的操作');
 }
 
 
@@ -687,14 +720,11 @@ function bindEvents(){
   document.getElementById('btn-nextweek').addEventListener('click',carryOverToNextWeek);
   document.getElementById('btn-report').addEventListener('click',generateReport);
   document.querySelector('[data-action="send-report"]').addEventListener('click',sendReport);
+  document.querySelector('[data-action="save-template"]').addEventListener('click',saveTemplate);
+  document.querySelector('[data-action="reset-template"]').addEventListener('click',resetTemplate);
   document.querySelector('[data-close="report-modal"]').addEventListener('click',()=>document.getElementById('report-overlay').classList.remove('show'));
 
-  // 设置面板—恢复默认模板
-  const tmplReset=document.getElementById('s-template-reset');
-  if(tmplReset)tmplReset.addEventListener('click',()=>{
-    document.getElementById('s-template').value=DEFAULT_REPORT_TEMPLATE;
-    pushSysMsg('🔄 已恢复默认模板，记得点「保存」');
-  });
+
 
   // 搜索框
   const si=document.getElementById('search-input');
@@ -801,15 +831,26 @@ function bindEvents(){
   });
 
   // 点遮罩关闭
-  document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('show')}));
+  document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{
+    if(e.target!==o)return;
+    if(o.id==='task-overlay')closeTaskModal();
+    else o.classList.remove('show')
+  }));
 
   // 全局快捷键
   document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'){document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('show'));return}
+    if(e.key==='Escape'){
+      const taskOv=document.getElementById('task-overlay');
+      if(taskOv.classList.contains('show')){closeTaskModal();return}
+      document.querySelectorAll('.overlay.show:not(#task-overlay)').forEach(o=>o.classList.remove('show'));
+      return
+    }
     if(e.ctrlKey||e.metaKey){
       if(e.key==='n'){e.preventDefault();openTaskModal(null)}
       else if(e.key==='f'){e.preventDefault();const el=document.getElementById('search-input');if(el){el.focus();el.select()}}
-      else if(e.key==='z'){e.preventDefault();undo()}
+      else if(e.key==='z'&&!e.shiftKey){e.preventDefault();undo()}
+      else if(e.key==='z'&&e.shiftKey){e.preventDefault();redo()}
+      else if(e.key==='y'){e.preventDefault();redo()}
     }
   });
 
@@ -860,7 +901,7 @@ bindEvents();
 render();
 initReminder();
 if(window.electronAPI && autoStart){window.electronAPI.setAutoStart(true).catch(()=>{});}
-pushSysMsg('💡 快捷键：Ctrl+N 新建  Ctrl+F 搜索  Ctrl+Z 撤销  ⇧Enter 换行');
+pushSysMsg('💡 快捷键：Ctrl+N 新建  Ctrl+F 搜索  Ctrl+Z 撤销  Ctrl+Shift+Z/Ctrl+Y 重做  ⇧Enter 换行');
 pushSysMsg('💡 当前 AI 接口：'+aiSettings.base+'  模型：'+aiSettings.model+(aiSettings.key?' (已配置 Key)':' (无需 Key 即可使用)'));
 
 // ============ 任务提醒 & 例行检查 ============
