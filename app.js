@@ -405,7 +405,7 @@ function extractOpsFromHtml(html){try{const m=html.match(/data-ops='([^']+)'/);r
 function pushMsg(role,text){const c=document.getElementById('chat');const d=document.createElement('div');d.className='msg '+role;if(role==='ai')d.innerHTML=mdToHtml(text,true);else d.textContent=text;c.appendChild(d);c.scrollTop=c.scrollHeight;return d}
 function pushSysMsg(text){const c=document.getElementById('chat');const d=document.createElement('div');d.className='msg sys';d.innerHTML=mdToHtml(text);c.appendChild(d);c.scrollTop=c.scrollHeight}
 function clearChat(){chatHistory=[];document.getElementById('chat').innerHTML='';pushSysMsg('已新建对话');save()}
-function restoreChat(){const el=document.getElementById('chat');if(!el)return;el.innerHTML='';chatHistory.forEach(m=>{const d=document.createElement('div');d.className='msg '+(m.role==='user'?'user':m.role==='assistant'?'ai':'sys');if(m.role==='user')d.textContent=m.content||'';else d.innerHTML=mdToHtml(m.content||'');el.appendChild(d)});el.scrollTop=el.scrollHeight}
+function restoreChat(){const el=document.getElementById('chat');if(!el)return;el.innerHTML='';chatHistory.forEach(m=>{const d=document.createElement('div');d.className='msg '+(m.role==='user'?'user':m.role==='assistant'?'ai':'sys');if(m.role==='user')d.textContent=m.content||'';else d.innerHTML=mdToHtml(stripJsonBlock(m.content||''));el.appendChild(d)});el.scrollTop=el.scrollHeight}
 
 // 统一 AI 调用入口：优先走 Electron 主进程（无跨域），否则浏览器直接 fetch 兜底
 async function callAI(payload){
