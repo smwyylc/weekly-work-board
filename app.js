@@ -296,16 +296,19 @@ window.WB = window.WB || {};
       }
     });
 
-    // 操作确认按钮（.ops-btn）
-    document.addEventListener('click', function(e) {
-      var btn = e.target.closest('.ops-btn');
-      if (!btn) return;
-      var ops = WB.extractOpsFromHtml(btn.outerHTML);
-      if (ops.length) {
-        WB.execOpsWithDetail(ops);
-        btn.replaceWith(document.createTextNode('已执行'));
-      }
-    });
+    // AI 操作栏按钮（外部 ops bar）
+    var opsBar = document.getElementById('aiOpsBar');
+    if (opsBar) {
+      opsBar.addEventListener('click', function(e) {
+        var btn = e.target.closest('.ops-btn');
+        if (!btn) return;
+        var ops = WB.extractOpsFromHtml(btn.outerHTML);
+        if (ops.length) {
+          WB.execOpsWithDetail(ops);
+          WB.showOpsBar(ops, true);
+        }
+      });
+    }
   };
 
   // ==================== 初始化 ====================

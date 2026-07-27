@@ -89,18 +89,11 @@ window.WB = window.WB || {};
   };
 
   // ==================== AI 对话 ====================
-  WB.mdToHtml = function(s, showOps) {
+  WB.mdToHtml = function(s) {
     if (!s) return '';
-    // 1) 提取 JSON 操作块（在代码块替换之前提取，确保能匹配到）
-    var ops = [];
-    s = s.replace(/```json\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```/g, function(_, json) {
-      try { var p = JSON.parse(json); if (Array.isArray(p)) { ops.push.apply(ops, p); return ''; } } catch(e) {}
-      return _;
-    });
-    s = s.replace(/```json\s*(\{[\s\S]*?\})\s*```/g, function(_, json) {
-      try { var p = JSON.parse(json); if (p.operations && Array.isArray(p.operations)) { ops.push.apply(ops, p.operations); return ''; } } catch(e) {}
-      return _;
-    });
+    // 1) 移除 JSON 操作块（不在消息中显示）
+    s = s.replace(/```json\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```/g, '');
+    s = s.replace(/```json\s*(\{[\s\S]*?\})\s*```/g, '');
     s = s.replace(/```json[\s\S]*?```/g, '');
     // 2) 提取非 JSON 围栏代码块
     var blocks = [];
@@ -158,11 +151,21 @@ window.WB = window.WB || {};
     });
     // 14) 换行
     s = s.replace(/\n/g, '<br>');
-    // 15) 操作按钮
-    if (showOps && ops.length) {
-      s += '<div class="ops-bar"><button class="ops-btn" data-ops=\'' + WB.esc(JSON.stringify(ops)) + '\'>✅ 执行 ' + ops.length + ' 项操作</button><span>点击后对看板生效</span></div>';
-    }
+    // 15) 操作按钮 — 已移至外部 aiOpsBar
     return s;
+  };
+
+  WB.showOpsBar = function(ops, autoExecuted) {
+    var bar = document.getElementById('aiOpsBar');
+    if (!bar) return;
+    if (autoExecuted) {
+      bar.innerHTML = '<span class="ops-done">✅ 已执行 ' + ops.length + ' 项操作</span>';
+    } else {
+      bar.innerHTML = '<span class="ops-info">🔧 ' + ops.length + ' 项待执行</span><button class="ops-btn" data-ops=\'' + WB.esc(JSON.stringify(ops)) + '\'>执行</button>';
+    }
+    bar.classList.add('show');
+    clearTimeout(bar._timer);
+    bar._timer = setTimeout(function() { bar.classList.remove('show'); }, 5000);
   };
 
   WB.extractOpsFromHtml = function(html) {
@@ -173,7 +176,7 @@ window.WB = window.WB || {};
     var c = document.getElementById('aiBody');
     var d = document.createElement('div');
     d.className = 'msg ' + role;
-    if (role === 'bot') d.innerHTML = WB.mdToHtml(text, true);
+    if (role === 'bot') d.innerHTML = WB.mdToHtml(text);
     else d.textContent = text;
     c.appendChild(d);
     c.scrollTop = c.scrollHeight;
@@ -204,7 +207,7 @@ window.WB = window.WB || {};
       var d = document.createElement('div');
       d.className = 'msg ' + (m.role === 'user' ? 'user' : m.role === 'assistant' ? 'bot' : 'sys');
       if (m.role === 'user') d.textContent = m.content || '';
-      else d.innerHTML = WB.mdToHtml(m.content || '', m.role === 'assistant');
+      else d.innerHTML = WB.mdToHtml(m.content || '');
       el.appendChild(d);
     });
     el.scrollTop = el.scrollHeight;
@@ -354,12 +357,15 @@ window.WB = window.WB || {};
         cleanup();
         var reply = r.fullContent || rawContent || '(无回复)';
         if (!aiBubble.parentNode) { document.getElementById('aiBody').appendChild(aiBubble); }
-        aiBubble.innerHTML = WB.mdToHtml(reply, true);
+        aiBubble.innerHTML = WB.mdToHtml(reply);
         WB.state.chatHistory.push({role:'assistant', content:reply});
         WB.save();
         WB.removeToolTags();
         var ops = WB.extractOpsRaw(reply);
-        if (ops.length) WB.execOpsWithDetail(ops);
+        if (ops.length) {
+          WB.execOpsWithDetail(ops);
+          WB.showOpsBar(ops, true);
+        }
         sendBtn.disabled = false;
       });
       window.electronAPI.onAIError(function(e) {
@@ -392,11 +398,14 @@ window.WB = window.WB || {};
       var aiBubble2 = document.createElement('div');
       aiBubble2.className = 'msg bot';
       document.getElementById('aiBody').appendChild(aiBubble2);
-      aiBubble2.innerHTML = WB.mdToHtml(reply, true);
+      aiBubble2.innerHTML = WB.mdToHtml(reply);
       WB.state.chatHistory.push({role:'assistant', content:reply});
       WB.save();
       var ops2 = WB.extractOpsRaw(reply);
-      if (ops2.length) WB.execOpsWithDetail(ops2);
+      if (ops2.length) {
+        WB.execOpsWithDetail(ops2);
+        WB.showOpsBar(ops2, true);
+      }
     } catch(err) {
       WB.removeToolTags();
       WB.pushMsg('ai', '⚠️ ' + err.message + (/invalid api key|401|unauthorized|api.?key/i.test(err.message) ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));

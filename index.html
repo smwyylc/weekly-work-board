@@ -300,6 +300,22 @@
   .msg.bot li{margin:1px 0}
   .msg.bot a{color:var(--accent);text-decoration:none}
   .msg.bot a:hover{text-decoration:underline}
+  .ai-ops-bar{
+    display:none; align-items:center; justify-content:space-between; gap:10px;
+    padding:7px 14px; margin:0 4px;
+    background:var(--accent-soft); border-radius:8px;
+    font-size:11px; color:var(--accent-ink);
+  }
+  .ai-ops-bar.show{display:flex}
+  .ai-ops-bar .ops-info{font-weight:500}
+  .ai-ops-bar .ops-btn{
+    font-family:var(--ui); font-size:11px; font-weight:600;
+    padding:3px 12px; border:none; border-radius:6px;
+    background:var(--accent); color:#fff; cursor:pointer;
+    transition:.15s;
+  }
+  .ai-ops-bar .ops-btn:hover{background:var(--accent-ink); transform:translateY(-1px)}
+  .ai-ops-bar .ops-done{font-weight:500; opacity:.8}
   .typing{display:inline-flex; gap:4px; align-items:center; padding:3px 0}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--muted-2);animation:blink 1.2s infinite}
   .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
@@ -461,6 +477,7 @@
           </div>
         </div>
       </div>
+      <div class="ai-ops-bar" id="aiOpsBar"></div>
       <div class="ai-foot">
         <div class="composer">
           <textarea id="aiInput" rows="1" placeholder="例如：把周三的评审挪到周四，关联人员加李四"></textarea>
