@@ -317,11 +317,14 @@ window.WB = window.WB || {};
         return;
       }
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'n') { e.preventDefault(); WB.openTaskModal(null); }
-        else if (e.key === 'f') { e.preventDefault(); var el = document.getElementById('searchInput'); if (el) { el.focus(); el.select(); } }
-        else if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); WB.undo(); }
-        else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); WB.redo(); }
-        else if (e.key === 'y') { e.preventDefault(); WB.redo(); }
+        // 焦点在文本输入框时，不拦截快捷键，交给原生行为
+        var tag = document.activeElement && document.activeElement.tagName;
+        var isInput = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement.isContentEditable;
+        if (e.key === 'n' && !isInput) { e.preventDefault(); WB.openTaskModal(null); }
+        else if (e.key === 'f' && !isInput) { e.preventDefault(); var el = document.getElementById('searchInput'); if (el) { el.focus(); el.select(); } }
+        else if (e.key === 'z' && !e.shiftKey && !isInput) { e.preventDefault(); WB.undo(); }
+        else if (e.key === 'z' && e.shiftKey && !isInput) { e.preventDefault(); WB.redo(); }
+        else if (e.key === 'y' && !isInput) { e.preventDefault(); WB.redo(); }
       }
     });
   };
