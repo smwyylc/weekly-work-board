@@ -209,12 +209,10 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
     <span class="week-range" id="week-range"></span>
   </div>
   <div class="nav">
-    <button class="btn" id="btn-export">导出</button>
-    <button class="btn btn-icon" id="btn-about" title="关于">ℹ</button>
-    <button class="btn btn-icon" id="ai-gear" title="设置">⚙</button>
     <button class="btn" id="btn-newtask">+ 新建任务</button>
     <button class="btn" id="btn-report" style="font-size:13px">📊 周报</button>
     <button class="btn btn-primary" id="btn-nextweek">进入下周 ⏭</button>
+    <button class="btn btn-icon" id="ai-gear" title="设置">⚙</button>
   </div>
 </div>
 
@@ -263,9 +261,13 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
           <option value="wed">周三</option>
           <option value="thu">周四</option>
           <option value="fri">周五</option>
+          <option value="sat">周六</option>
+          <option value="sun">周日</option>
           <option value="">残留（未排期）</option>
         </select>
       </div>
+    </div>
+    <div id="task-extra" style="display:none">
       <div class="row">
         <label>状态</label>
         <select id="f-status">
@@ -275,35 +277,38 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
           <option value="blocked">阻塞</option>
         </select>
       </div>
-    </div>
-    <div class="row">
-      <label>关联人员（逗号分隔）</label>
-      <input id="f-people" placeholder="张三, 李四" />
-    </div>
-    <div class="row">
-      <label>提醒时间（可选）</label>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input id="f-remind" type="time" style="flex:1" />
-        <button id="f-remind-clear" type="button" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text2);cursor:pointer;font-size:12px;white-space:nowrap" title="清空提醒时间">✕ 清空</button>
+      <div class="row">
+        <label>关联人员（逗号分隔）</label>
+        <input id="f-people" placeholder="张三, 李四" />
       </div>
-      <div class="hint">设置后，到点会弹出系统通知提醒</div>
+      <div class="row">
+        <label>提醒时间（可选）</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="f-remind" type="time" style="flex:1" />
+          <button id="f-remind-clear" type="button" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text2);cursor:pointer;font-size:12px;white-space:nowrap" title="清空提醒时间">✕ 清空</button>
+        </div>
+        <div class="hint">设置后到点弹出系统通知</div>
+      </div>
+      <div class="row">
+        <label>重复周期（可选）</label>
+        <select id="f-repeat">
+          <option value="">不重复</option>
+          <option value="daily">每日（工作日）</option>
+          <option value="mon">每周一</option>
+          <option value="tue">每周二</option>
+          <option value="wed">每周三</option>
+          <option value="thu">每周四</option>
+          <option value="fri">每周五</option>
+        </select>
+        <div class="hint">设置后每天/每周自动生成新任务</div>
+      </div>
+      <div class="row">
+        <label>备注（可选）</label>
+        <textarea id="f-notes" placeholder="补充说明、链接、注意事项等" style="min-height:50px"></textarea>
+      </div>
     </div>
-    <div class="row">
-      <label>重复周期（可选）</label>
-      <select id="f-repeat">
-        <option value="">不重复</option>
-        <option value="daily">每日（工作日）</option>
-        <option value="mon">每周一</option>
-        <option value="tue">每周二</option>
-        <option value="wed">每周三</option>
-        <option value="thu">每周四</option>
-        <option value="fri">每周五</option>
-      </select>
-      <div class="hint">设置后每天/每周自动生成新任务</div>
-    </div>
-    <div class="row">
-      <label>备注（可选）</label>
-      <textarea id="f-notes" placeholder="补充说明、链接、注意事项等" style="min-height:50px"></textarea>
+    <div style="text-align:center;margin-bottom:10px">
+      <button id="task-toggle-extra" type="button" style="background:none;border:none;color:var(--text2);font-size:12px;cursor:pointer;padding:4px">📋 更多选项</button>
     </div>
     <div class="modal-actions">
       <button class="btn-flex danger" id="task-del" style="display:none">删除</button>
@@ -321,29 +326,38 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
     <div class="set-section">
       <h3>AI 模型</h3>
       <div class="row">
-        <label>API Base URL</label>
-        <input id="s-base" placeholder="https://opencode.ai/zen/v1" />
-        <div class="hint">OpenAI 兼容接口，留空则使用默认地址</div>
+        <label>接口方案</label>
+        <select id="s-preset" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;outline:none;background:var(--card);color:var(--text)">
+          <option value="opencode">opencode.ai（无需 Key，推荐）</option>
+          <option value="deepseek">DeepSeek（需注册获取 Key）</option>
+          <option value="custom">自定义接口</option>
+        </select>
       </div>
-      <div class="row">
-        <label>API Key</label>
-        <input id="s-key" type="password" placeholder="sk-..." />
-        <div class="hint">仅保存在本机，不会上传</div>
+      <div id="s-ai-advanced" style="display:none">
+        <div class="row">
+          <label>API Base URL</label>
+          <input id="s-base" placeholder="https://opencode.ai/zen/v1" />
+        </div>
+        <div class="row">
+          <label>API Key</label>
+          <input id="s-key" type="password" placeholder="sk-..." />
+        </div>
+        <div class="row">
+          <label>模型</label>
+          <input id="s-model" list="model-list" placeholder="deepseek-v4-flash-free" />
+          <datalist id="model-list">
+            <option value="deepseek-v4-flash-free"></option>
+            <option value="deepseek-chat"></option>
+            <option value="deepseek-reasoner"></option>
+            <option value="gpt-4o"></option>
+            <option value="gpt-4o-mini"></option>
+            <option value="gpt-4-turbo"></option>
+            <option value="o1"></option>
+            <option value="o1-mini"></option>
+          </datalist>
+        </div>
       </div>
-      <div class="row">
-        <label>模型</label>
-        <input id="s-model" list="model-list" placeholder="deepseek-v4-flash-free" />
-        <datalist id="model-list">
-          <option value="deepseek-v4-flash-free"></option>
-          <option value="deepseek-chat"></option>
-          <option value="deepseek-reasoner"></option>
-          <option value="gpt-4o"></option>
-          <option value="gpt-4o-mini"></option>
-          <option value="gpt-4-turbo"></option>
-          <option value="o1"></option>
-          <option value="o1-mini"></option>
-        </datalist>
-      </div>
+      <div style="margin-top:6px;font-size:12px;color:var(--text2)">当前使用：<span id="s-ai-summary">opencode.ai</span></div>
     </div>
 
     <div class="set-section">
@@ -386,6 +400,11 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
         </div>
         <button class="btn" id="btn-check-update" style="border:1px solid var(--border);padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;background:var(--card);color:var(--text)">📦 检查更新</button>
       </div>
+    </div>
+
+    <div class="set-section" style="border-top:1px solid var(--border);padding-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="s-export" style="border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;background:var(--card);color:var(--text2)">📤 导出数据</button>
+      <button class="btn" id="s-about" style="border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;background:var(--card);color:var(--text2)">ℹ 关于</button>
     </div>
 
     <div class="modal-actions">

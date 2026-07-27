@@ -258,11 +258,50 @@ async function openSettings(){
   document.getElementById('s-template').value=reportTemplate;
   document.getElementById('set-overlay').classList.add('show');
 }
+async function openSettings(){
+  // 根据当前配置确定预设
+  const base=(aiSettings.base||'').toLowerCase();
+  const model=(aiSettings.model||'').toLowerCase();
+  let preset='custom';
+  if(base.includes('opencode.ai'))preset='opencode';
+  else if(base.includes('deepseek.com'))preset='deepseek';
+  document.getElementById('s-preset').value=preset;
+  const advanced=document.getElementById('s-ai-advanced');
+  const isCustom=preset==='custom';
+  advanced.style.display=isCustom?'block':'none';
+  document.getElementById('s-base').value=aiSettings.base||'';
+  document.getElementById('s-key').value=aiSettings.key||'';
+  document.getElementById('s-model').value=aiSettings.model||'deepseek-v4-flash-free';
+  updateAISummary();
+  document.getElementById('s-autostart').checked=autoStart;
+  document.getElementById('s-weekmode').value=String(weekMode);
+  document.getElementById('s-template').value=reportTemplate;
+  document.getElementById('set-overlay').classList.add('show');
+}
+function updateAISummary(){
+  const el=document.getElementById('s-ai-summary');
+  if(!el)return;
+  const preset=document.getElementById('s-preset').value;
+  if(preset==='opencode')el.textContent='opencode.ai（无需Key）';
+  else if(preset==='deepseek')el.textContent='DeepSeek';
+  else{
+    const b=document.getElementById('s-base').value||'默认';
+    const m=document.getElementById('s-model').value||'默认';
+    el.textContent=b+' / '+m;
+  }
+}
 function closeSettings(){document.getElementById('set-overlay').classList.remove('show')}
 function openAbout(){document.getElementById('about-overlay').classList.add('show')}
 function closeAbout(){document.getElementById('about-overlay').classList.remove('show')}
 async function saveSettings(){
-  aiSettings={base:document.getElementById('s-base').value.trim(),key:document.getElementById('s-key').value.trim(),model:document.getElementById('s-model').value.trim()||'deepseek-v4-flash-free'};
+  const preset=document.getElementById('s-preset').value;
+  if(preset==='opencode'){
+    aiSettings={base:'https://opencode.ai/zen/v1',key:'',model:'deepseek-v4-flash-free'};
+  }else if(preset==='deepseek'){
+    aiSettings={base:'https://api.deepseek.com/v1',key:document.getElementById('s-key').value.trim()||'',model:'deepseek-chat'};
+  }else{
+    aiSettings={base:document.getElementById('s-base').value.trim(),key:document.getElementById('s-key').value.trim(),model:document.getElementById('s-model').value.trim()||'deepseek-v4-flash-free'};
+  }
   const want=document.getElementById('s-autostart').checked;
   if(window.electronAPI){try{await window.electronAPI.setAutoStart(want)}catch(e){}}
   autoStart=want;
@@ -271,7 +310,7 @@ async function saveSettings(){
   reportTemplate=document.getElementById('s-template').value.trim();
   save();
   closeSettings();
-  pushSysMsg('设置已保存'+(want?'，已开启开机自启动':''));
+  pushSysMsg('✅ 设置已保存 — '+(preset==='opencode'?'opencode.ai（无需Key）':preset==='deepseek'?'DeepSeek':aiSettings.base));
 }
 
 // ============ 导入导出 ============
@@ -615,8 +654,6 @@ function bindEvents(){
   document.querySelectorAll('[data-nav]').forEach(btn=>{
     btn.addEventListener('click',()=>changeWeek(parseInt(btn.dataset.nav)));
   });
-  document.getElementById('btn-export').addEventListener('click',exportData);
-  document.getElementById('btn-about').addEventListener('click',openAbout);
   document.getElementById('btn-newtask').addEventListener('click',()=>openTaskModal(null));
   document.getElementById('btn-nextweek').addEventListener('click',carryOverToNextWeek);
   document.getElementById('btn-report').addEventListener('click',generateReport);
@@ -649,6 +686,15 @@ function bindEvents(){
   document.querySelectorAll('[data-close="task-modal"]').forEach(b=>b.addEventListener('click',closeTaskModal));
   document.querySelector('[data-action="save-task"]').addEventListener('click',saveTask);
 
+  // 更多选项折叠
+  const toggleBtn=document.getElementById('task-toggle-extra');
+  const extra=document.getElementById('task-extra');
+  if(toggleBtn&&extra)toggleBtn.addEventListener('click',()=>{
+    const show=extra.style.display!=='block';
+    extra.style.display=show?'block':'none';
+    toggleBtn.textContent=show?'📋 收起选项':'📋 更多选项';
+  });
+
   // 清空提醒时间
   const clearBtn=document.getElementById('f-remind-clear');
   if(clearBtn)clearBtn.addEventListener('click',()=>{document.getElementById('f-remind').value=''});
@@ -656,6 +702,16 @@ function bindEvents(){
   // 设置弹窗
   document.querySelectorAll('[data-close="set-modal"]').forEach(b=>b.addEventListener('click',closeSettings));
   document.querySelector('[data-action="save-settings"]').addEventListener('click',saveSettings);
+  document.getElementById('s-export')?.addEventListener('click',()=>{closeSettings();setTimeout(exportData,100)});
+  document.getElementById('s-about')?.addEventListener('click',()=>{closeSettings();setTimeout(openAbout,100)});
+  // AI 预设切换
+  document.getElementById('s-preset')?.addEventListener('change',function(){
+    const advanced=document.getElementById('s-ai-advanced');
+    if(!advanced)return;
+    const show=this.value==='custom';
+    advanced.style.display=show?'block':'none';
+    updateAISummary();
+  });
 
   // 检查更新
   const updateBtn=document.getElementById('btn-check-update');
