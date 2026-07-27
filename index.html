@@ -169,6 +169,16 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
 .switch input:checked+.slider{background:var(--primary)}
 .switch input:checked+.slider:before{transform:translateX(20px)}
 
+/* 提醒弹窗 */
+#reminder-toast{position:fixed;top:-100px;left:50%;transform:translateX(-50%);z-index:200;background:var(--primary);color:#fff;padding:14px 24px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);display:none;align-items:center;gap:12px;font-size:14px;cursor:pointer;transition:top .35s cubic-bezier(.34,1.56,.64,1);max-width:500px}
+#reminder-toast.show{top:20px}
+#reminder-toast .rt-icon{font-size:20px;flex-shrink:0}
+#reminder-toast .rt-body{flex:1;min-width:0}
+#reminder-toast .rt-content{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#reminder-toast .rt-time{font-size:12px;opacity:.8;margin-top:2px}
+#reminder-toast .rt-close{font-size:16px;opacity:.6;flex-shrink:0}
+#reminder-toast .rt-close:hover{opacity:1}
+
 /* 滚动条 */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-thumb{background:#d9d9d9;border-radius:3px}
@@ -497,6 +507,15 @@ body{background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direc
       <button class="btn-flex primary" data-action="send-report" style="background:var(--primary);color:#fff">✅ 发送给 AI</button>
     </div>
   </div>
+</div>
+
+<div id="reminder-toast">
+  <span class="rt-icon">🔔</span>
+  <div class="rt-body">
+    <div class="rt-content">任务内容</div>
+    <div class="rt-time">14:25</div>
+  </div>
+  <span class="rt-close">✕</span>
 </div>
 
 <script src="app.js"></script>

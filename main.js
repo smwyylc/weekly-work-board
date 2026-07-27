@@ -53,6 +53,20 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  // 单实例锁：防止重复启动
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) {
+    app.quit();
+    return;
+  }
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
   createWindow();
   createTray();
   app.on('activate', () => {
@@ -168,6 +182,11 @@ ipcMain.handle('set-autostart', (event, on) => {
 ipcMain.handle('show-notification', (event, { title, body }) => {
   if (Notification.isSupported()) {
     new Notification({ title: title || '任务提醒', body: body || '' }).show();
+    // 任务栏闪烁
+    if (mainWindow) {
+      mainWindow.flashFrame(true);
+      mainWindow.once('focus', () => mainWindow.flashFrame(false));
+    }
     return true;
   }
   return false;

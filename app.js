@@ -850,7 +850,7 @@ function initReminder(){
           if(window.electronAPI && window.electronAPI.showNotification){
             window.electronAPI.showNotification({title:'🔔 任务提醒',body:t.content}).catch(()=>{});
           }
-          pushSysMsg('🔔 提醒：'+t.content+'（'+t.remindAt+'）');
+          showReminderToast(t.content,t.remindAt);
         }
       }else{
         // 提醒时间不匹配（改了时间/过了天），清除标记允许下次提醒
@@ -913,5 +913,18 @@ function processRecurring(){
     }
   });
   if(changed)save();
+}
+
+// ============ 提醒弹窗 ============
+function showReminderToast(content,time){
+  const el=document.getElementById('reminder-toast');
+  if(!el)return;
+  el.querySelector('.rt-content').textContent=content;
+  el.querySelector('.rt-time').textContent=time;
+  el.classList.add('show');
+  el.style.display='flex';
+  clearTimeout(el._timer);
+  el._timer=setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.style.display='none',300)},6000);
+  el.onclick=()=>{clearTimeout(el._timer);el.classList.remove('show');setTimeout(()=>el.style.display='none',300)};
 }
 
