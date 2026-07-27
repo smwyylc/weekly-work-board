@@ -367,7 +367,11 @@ window.WB = window.WB || {};
         if (ops.length) {
           var summaries = WB.execOpsWithDetail(ops);
           if (summaries && summaries.length) {
-            WB.pushSysMsg('✅ ' + summaries.join(' · '));
+            var note = document.createElement('div');
+            note.className = 'ops-note';
+            note.textContent = summaries.join(' · ');
+            var chat = document.getElementById('aiBody');
+            chat.insertBefore(note, aiBubble.nextSibling);
           }
         }
         sendBtn.disabled = false;
@@ -409,7 +413,10 @@ window.WB = window.WB || {};
       if (ops2.length) {
         var summaries2 = WB.execOpsWithDetail(ops2);
         if (summaries2 && summaries2.length) {
-          WB.pushSysMsg('✅ ' + summaries2.join(' · '));
+          var note2 = document.createElement('div');
+          note2.className = 'ops-note';
+          note2.textContent = summaries2.join(' · ');
+          document.getElementById('aiBody').insertBefore(note2, aiBubble2.nextSibling);
         }
       }
     } catch(err) {
