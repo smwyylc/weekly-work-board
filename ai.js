@@ -239,6 +239,9 @@ window.WB = window.WB || {};
   WB.stripJsonBlock = function(s) {
     var r = (s||'');
     r = r.replace(/```json[\s\S]*?```/g, '');
+    // 流式时 JSON 块可能尚未闭合，截断到末尾
+    var openJson = r.indexOf('```json');
+    if (openJson >= 0) { r = r.slice(0, openJson); }
     r = r.replace(/\n?\s*\{\s*"operations"[\s\S]*?\}\s*/g, '');
     while (true) {
       var m = r.match(/\n?\s*\[\s*((?:\s*\{[^}]*\}\s*,?\s*)+)\]\s*/);
@@ -331,8 +334,27 @@ window.WB = window.WB || {};
       var rawContent = '';
       var typing = document.createElement('div');
       typing.className = 'typing';
-      typing.innerHTML = '<span></span><span></span><span></span>';
+      typing.innerHTML = '<i></i><i></i><i></i>';
       var finished = false;
+      var renderPending = false;
+      var throttleRender = function() {
+        if (renderPending || finished) return;
+        renderPending = true;
+        requestAnimationFrame(function() {
+          renderPending = false;
+          if (finished) return;
+          var displayContent = WB.stripJsonBlock(rawContent);
+          if (displayContent || !typing.parentNode) {
+            if (!typing.parentNode) { document.getElementById('aiBody').appendChild(aiBubble); aiBubble.appendChild(typing); }
+            if (displayContent) {
+              aiBubble.innerHTML = WB.mdToHtml(displayContent);
+              if (typing) aiBubble.appendChild(typing);
+            }
+          }
+          var chat = document.getElementById('aiBody');
+          chat.scrollTop = chat.scrollHeight;
+        });
+      };
       var cleanup = function() {
         if (typing && typing.parentNode) typing.remove();
         typing = null;
@@ -341,15 +363,8 @@ window.WB = window.WB || {};
       window.electronAPI.onAIChunk(function(c) {
         if (finished) return;
         if (c === null) return;
-        if (!typing.parentNode) { document.getElementById('aiBody').appendChild(aiBubble); aiBubble.appendChild(typing); }
         rawContent += c;
-        var displayContent = WB.stripJsonBlock(rawContent);
-        if (displayContent) {
-          aiBubble.innerHTML = WB.mdToHtml(displayContent);
-          if (typing) aiBubble.appendChild(typing);
-        }
-        var chat = document.getElementById('aiBody');
-        chat.scrollTop = chat.scrollHeight;
+        throttleRender();
       });
       window.electronAPI.onAIEnd(function(r) {
         if (finished) return;
