@@ -272,67 +272,49 @@ async function saveSettings(){
 
 // ============ 导入导出 ============
 function exportData(){const b=new Blob([JSON.stringify(tasks,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`工作安排_${fmt(new Date())}.json`;a.click();URL.revokeObjectURL(u)}
-function importData(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{
-  let parsed;
-  try{parsed=JSON.parse(ev.target.result)}catch(_){alert('文件格式不正确：不是有效的 JSON');return}
-  if(!Array.isArray(parsed)){alert('文件格式不正确：应为任务数组');return}
-  // 校验并补全必要字段
-  const wk=weekKey(viewWeekStart);
-  const cleaned=parsed.filter(t=>t&&typeof t==='object'&&typeof t.content==='string').map(t=>({
-    id:String(t.id||uid()),
-    content:String(t.content),
-    people:Array.isArray(t.people)?t.people.map(String).filter(x=>x):[],
-    status:['todo','doing','done','blocked'].includes(t.status)?t.status:'todo',
-    day:getDays().map(d=>d.k).includes(t.day)?t.day:null,
-    weekKey:t.weekKey||wk,
-    order:Number(t.order)||Date.now(),
-    createdAt:Number(t.createdAt)||Date.now(),
-    remindAt:t.remindAt||null,
-    repeat:t.repeat||null,
-    notes:t.notes||null
-  }));
-  if(cleaned.length===0){alert('文件中没有有效任务');return}
-  tasks=cleaned;save();render();pushSysMsg('导入成功，共 '+cleaned.length+' 项任务');
-};r.onerror=()=>alert('读取文件失败');r.readAsText(f);i.click()}}
 
 // ============ AI 对话 ============
 function mdToHtml(s,showOps){
   if(!s)return '';
-  // 先提取代码块，避免被转义破坏
+  // 1) 提取围栏代码块
   const blocks=[];
   s=s.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{
     const idx=blocks.length;
     blocks.push({lang,code:code.trim()});
-    return '@@CODE'+idx+'@@';
+    return '@@FENCE'+idx+'@@';
   });
-  // 再提取 JSON 操作块（用于显示按钮）
+  // 2) 提取行内代码（在转义前保护）
+  const inlines=[];
+  s=s.replace(/`([^`]+)`/g,(_,code)=>{
+    const idx=inlines.length;
+    inlines.push(code);
+    return '@@ICODE'+idx+'@@';
+  });
+  // 3) 提取 JSON 操作块
   const ops=[];
   s=s.replace(/```json\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```/g,(_,json)=>{
-    try{
-      const parsed=JSON.parse(json);
-      if(Array.isArray(parsed)){ops.push(...parsed);return ''}
-    }catch(e){}
+    try{const p=JSON.parse(json);if(Array.isArray(p)){ops.push(...p);return''}}catch(e){}
     return _;
   });
   s=s.replace(/```json\s*(\{[\s\S]*?\})\s*```/g,(_,json)=>{
-    try{
-      const parsed=JSON.parse(json);
-      if(parsed.operations&&Array.isArray(parsed.operations)){ops.push(...parsed.operations);return ''}
-    }catch(e){}
+    try{const p=JSON.parse(json);if(p.operations&&Array.isArray(p.operations)){ops.push(...p.operations);return''}}catch(e){}
     return _;
   });
-  // 剩余 ```json 块也尝试提取
   s=s.replace(/```json[\s\S]*?```/g,'');
-  // 转义 HTML
+  // 4) 转义 HTML
   s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // 还原代码块
-  s=s.replace(/@@CODE(\d+)@@/g,(_,idx)=>{
+  // 5) 还原行内代码
+  s=s.replace(/@@ICODE(\d+)@@/g,(_,idx)=>'<code>'+inlines[+idx]+'</code>');
+  // 6) 还原围栏代码块
+  s=s.replace(/@@FENCE(\d+)@@/g,(_,idx)=>{
     const b=blocks[+idx];
     return '<pre><code'+(b.lang?' class="lang-'+b.lang+'"':'')+'>'+b.code+'</code></pre>';
   });
-  // 行内代码
-  s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
-  // 表格
+  // 7) 粗体（先于斜体）
+  s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  // 8) 斜体（仅匹配 * 紧贴文字的，避免误伤中文）
+  s=s.replace(/(^|\s)\*([^*\n]+?)\*(\s|[.,;:!?，。；：！？\n]|$)/g,'$1<em>$2</em>$3');
+  // 9) 表格
   s=s.replace(/^\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)*)/gm,(_,h,b)=>{
     const hs=h.split('|').map(x=>x.trim()).filter(Boolean);
     const rows=b.trim().split('\n').map(r=>r.split('|').map(x=>x.trim()).filter(Boolean));
@@ -340,35 +322,26 @@ function mdToHtml(s,showOps){
     rows.forEach(r=>{tbl+='<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>'});
     return tbl+'</tbody></table>';
   });
-  // 粗体
-  s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
-  // 斜体
-  s=s.replace(/\*(.+?)\*/g,'<em>$1</em>');
-  // 列表
+  // 10) 无序列表
   s=s.replace(/(^|\n)((?:- .+(?:\n|$))+)/g,(m,pre,block)=>{
     const items=block.trim().split('\n').map(x=>'<li>'+x.replace(/^- /,'')+'</li>').join('');
-    return pre+'@@UL@@'+items+'@@/UL@@';
+    return pre+'<ul>'+items+'</ul>';
   });
+  // 11) 有序列表
   s=s.replace(/(^|\n)((?:\d+\. .+(?:\n|$))+)/g,(m,pre,block)=>{
     const items=block.trim().split('\n').map(x=>'<li>'+x.replace(/^\d+\. /,'')+'</li>').join('');
-    return pre+'@@OL@@'+items+'@@/OL@@';
+    return pre+'<ol>'+items+'</ol>';
   });
-  s=s.replace(/@@UL@@([\s\S]*?)@@\/UL@@/g,'<ul>$1</ul>');
-  s=s.replace(/@@OL@@([\s\S]*?)@@\/OL@@/g,'<ol>$1</ol>');
-  // 链接
+  // 12) 链接
   s=s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,text,url)=>{
     const safe=url.startsWith('http://')||url.startsWith('https://');
     return safe?'<a href="'+url+'" target="_blank" rel="noopener">'+text+'</a>':text+'（'+url+'）'
   });
-  // 换行
+  // 13) 换行
   s=s.replace(/\n/g,'<br>');
-  s=s.replace(/(<ul>|<ol>)<br>/g,'$1').replace(/<br>(<\/ul>|<\/ol>)/g,'$1');
-  // 如果开启了操作按钮模式，且在最终回复中检测到有效操作，生成执行按钮
+  // 14) 操作按钮
   if(showOps&&ops.length){
-    s+='<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
-    s+='<button class="ops-btn" data-ops=\''+esc(JSON.stringify(ops))+'\' style="background:var(--primary);color:#fff;border:none;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✅ 执行 '+ops.length+' 项操作</button>';
-    s+='<span style="font-size:12px;color:var(--text2);align-self:center">点击后对看板生效</span>';
-    s+='</div>';
+    s+='<div class="ops-bar"><button class="ops-btn" data-ops=\''+esc(JSON.stringify(ops))+'\'>✅ 执行 '+ops.length+' 项操作</button><span>点击后对看板生效</span></div>';
   }
   return s;
 }
@@ -610,7 +583,6 @@ function bindEvents(){
     btn.addEventListener('click',()=>changeWeek(parseInt(btn.dataset.nav)));
   });
   document.getElementById('btn-export').addEventListener('click',exportData);
-  document.getElementById('btn-import').addEventListener('click',importData);
   document.getElementById('btn-about').addEventListener('click',openAbout);
   document.getElementById('btn-newtask').addEventListener('click',()=>openTaskModal(null));
   document.getElementById('btn-nextweek').addEventListener('click',carryOverToNextWeek);
