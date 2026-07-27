@@ -524,20 +524,6 @@ function generateReport(){
   document.getElementById('report-overlay').classList.add('show');
   setTimeout(()=>document.getElementById('report-text').focus(),80);
 }
-function saveReportTemplate(){
-  reportTemplate=document.getElementById('report-text').value.trim();
-  save();
-  pushSysMsg('💾 周报模板已保存');
-}
-function resetReportTemplate(){
-  reportTemplate='';
-  save();
-  const wk=weekKey(viewWeekStart);
-  const end=addDays(viewWeekStart,weekMode===7?6:4);
-  const weekStr=`${viewWeekStart.getMonth()+1}/${viewWeekStart.getDate()} - ${end.getMonth()+1}/${end.getDate()}`;
-  document.getElementById('report-text').value=DEFAULT_REPORT_TEMPLATE.replace(/\{\{week\}\}/g,weekStr).replace(/\{\{(?!week\})\w+\}\}/g,'');
-  pushSysMsg('🔄 已恢复默认模板');
-}
 function sendReport(){
   const text=document.getElementById('report-text').value.trim();
   if(!text)return;
@@ -635,9 +621,14 @@ function bindEvents(){
   document.getElementById('btn-nextweek').addEventListener('click',carryOverToNextWeek);
   document.getElementById('btn-report').addEventListener('click',generateReport);
   document.querySelector('[data-action="send-report"]').addEventListener('click',sendReport);
-  document.querySelector('[data-action="save-template"]').addEventListener('click',saveReportTemplate);
-  document.querySelector('[data-action="reset-template"]').addEventListener('click',resetReportTemplate);
   document.querySelector('[data-close="report-modal"]').addEventListener('click',()=>document.getElementById('report-overlay').classList.remove('show'));
+
+  // 设置面板—恢复默认模板
+  const tmplReset=document.getElementById('s-template-reset');
+  if(tmplReset)tmplReset.addEventListener('click',()=>{
+    document.getElementById('s-template').value=DEFAULT_REPORT_TEMPLATE;
+    pushSysMsg('🔄 已恢复默认模板，记得点「保存」');
+  });
 
   // 搜索框
   const si=document.getElementById('search-input');
