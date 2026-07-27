@@ -25,6 +25,7 @@ window.WB = window.WB || {};
       var cfg = JSON.parse(localStorage.getItem('ww_cfg')||'{}');
       WB.state.autoStart = !!cfg.autoStart;
       WB.state.weekMode = cfg.weekMode || 5;
+      WB.state.aiWidth = cfg.aiWidth || 360;
     } catch(e) { WB.state.autoStart = false; WB.state.weekMode = 5; }
 
     try {
@@ -53,7 +54,8 @@ window.WB = window.WB || {};
 
     localStorage.setItem('ww_cfg', JSON.stringify({
       autoStart: WB.state.autoStart,
-      weekMode: WB.state.weekMode
+      weekMode: WB.state.weekMode,
+      aiWidth: WB.state.aiWidth
     }));
 
     localStorage.setItem('ww_chat', JSON.stringify(WB.state.chatHistory.slice(-30)));

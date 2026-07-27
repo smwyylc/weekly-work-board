@@ -164,7 +164,36 @@ window.WB = window.WB || {};
       });
     });
 
-    // AI 面板切换
+    // AI 面板宽度拖拽调整
+    var resizeHandle = document.getElementById('aiResize');
+    if (resizeHandle) {
+      var bodyEl = document.querySelector('.body');
+      var minW = 200, maxRatio = 0.5;
+      var startX, startW;
+      resizeHandle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        startX = e.clientX;
+        startW = WB.state.aiWidth || 360;
+        resizeHandle.classList.add('active');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+      document.addEventListener('mousemove', function(e) {
+        if (!resizeHandle.classList.contains('active')) return;
+        var dx = startX - e.clientX;
+        var newW = Math.round(startW + dx);
+        newW = Math.max(minW, Math.min(newW, Math.round(window.innerWidth * maxRatio)));
+        WB.state.aiWidth = newW;
+        bodyEl.style.setProperty('--ai-width', newW + 'px');
+      });
+      document.addEventListener('mouseup', function() {
+        if (!resizeHandle.classList.contains('active')) return;
+        resizeHandle.classList.remove('active');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        WB.save();
+      });
+    }
     var btnToggleAi = document.getElementById('btnToggleAi');
     if (btnToggleAi) {
       btnToggleAi.addEventListener('click', function() {
@@ -282,6 +311,9 @@ window.WB = window.WB || {};
   // ==================== 初始化 ====================
   (async function init() {
     await WB.load();
+    // 恢复 AI 面板宽度
+    var savedW = WB.state.aiWidth || 360;
+    document.querySelector('.body').style.setProperty('--ai-width', savedW + 'px');
     WB.restoreChat();
 
     // 自动跨周
