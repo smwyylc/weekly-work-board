@@ -772,12 +772,17 @@ function initReminder(){
     const todayKey=['sun','mon','tue','wed','thu','fri','sat'][now.getDay()];
     const wk=weekKey(now);
     tasks.forEach(t=>{
-      if(t.remindAt===curTime && t.status!=='done' && t.day===todayKey && t.weekKey===wk && !t._reminded){
-        t._reminded=true;
-        if(window.electronAPI && window.electronAPI.showNotification){
-          window.electronAPI.showNotification({title:'🔔 任务提醒',body:t.content}).catch(()=>{});
+      if(t.remindAt && t.remindAt<=curTime && t.day===todayKey && t.weekKey===wk){
+        if(t.status!=='done' && !t._reminded){
+          t._reminded=true;
+          if(window.electronAPI && window.electronAPI.showNotification){
+            window.electronAPI.showNotification({title:'🔔 任务提醒',body:t.content}).catch(()=>{});
+          }
+          pushSysMsg('🔔 提醒：'+t.content+'（'+t.remindAt+'）');
         }
-        pushSysMsg('🔔 提醒：'+t.content+'（'+t.remindAt+'）');
+      }else{
+        // 提醒时间不匹配（改了时间/过了天），清除标记允许下次提醒
+        if(t._reminded)t._reminded=false;
       }
     });
     // 顺便处理例行任务（跨天场景）
