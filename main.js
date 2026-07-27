@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Notification, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Notification, Tray, Menu, safeStorage } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -76,6 +76,28 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   // 不退出，保留托盘
+});
+
+// 安全存储 API Key：使用 Electron safeStorage 加密，避免明文存 localStorage
+ipcMain.handle('encrypt-key', (event, plaintext) => {
+  if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'safeStorage 不可用' };
+  try {
+    const encrypted = safeStorage.encryptString(plaintext);
+    return { ok: true, data: encrypted.toString('hex') };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('decrypt-key', (event, hexData) => {
+  if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'safeStorage 不可用' };
+  try {
+    const buffer = Buffer.from(hexData, 'hex');
+    const plaintext = safeStorage.decryptString(buffer);
+    return { ok: true, data: plaintext };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 // AI 调用：在 Node 主进程发起 HTTP 请求，彻底规避浏览器 file:// 的跨域(CORS)限制
@@ -160,7 +182,7 @@ ipcMain.handle('call-ai-stream', async (event, payload) => {
           if (delta?.tool_calls) {
             event.sender.send('ai-stream-chunk', null); // 标记工具调用
           }
-        } catch (e) {}
+        } catch (e) {console.error('SSE 解析失败', e, data)}
       }
     }
     event.sender.send('ai-stream-end', { finishReason, fullContent });
@@ -205,13 +227,17 @@ ipcMain.handle('check-update', async () => {
       headers: { 'Accept': 'application/vnd.github+json' },
       signal: AbortSignal.timeout(10000)
     });
+    if (resp.status === 404) return { ok: false, error: '暂无发布版本', noRelease: true };
     if (!resp.ok) return { ok: false, error: '无法获取版本信息' };
     const data = await resp.json();
-    const tag = data.tag_name || '';
+    const tag = (data.tag_name || '').replace(/^v/i, '');
     const asset = (data.assets || []).find(a => a.name.endsWith('.exe') && a.name.includes('Setup'));
     if (!asset) return { ok: false, error: '未找到安装包' };
+    // 从 package.json 读本地版本
+    const pkg = require('./package.json');
+    const localVer = pkg.version || '0.0.0';
     return {
-      ok: true, version: tag,
+      ok: true, version: tag, localVersion: localVer,
       downloadUrl: asset.browser_download_url,
       size: asset.size,
       body: (data.body || '').slice(0, 200)
@@ -237,7 +263,8 @@ ipcMain.handle('download-update', async (event, url) => {
 
 ipcMain.handle('install-update', (event, path) => {
   try {
-    require('child_process').exec('start "" "' + path + '"');
+    // 使用 execFile 避免 shell 注入：path 作为独立参数传入，不会被解析为命令
+    require('child_process').execFile('cmd', ['/c', 'start', '""', path]);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };

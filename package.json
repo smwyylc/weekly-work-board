@@ -1,6 +1,6 @@
 {
   "name": "weekly-work-board",
-  "version": "1.0.4",
+  "version": "1.1.1",
   "description": "本周工作安排 - 桌面应用（Electron）",
   "main": "main.js",
   "author": "WorkBuddy",
@@ -20,7 +20,8 @@
       "target": [
         "nsis"
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "sign": false
     },
     "nsis": {
       "createDesktopShortcut": true,
@@ -33,11 +34,17 @@
       "index.html",
       "main.js",
       "preload.js",
-      "app.js"
+      "state.js",
+      "storage.js",
+      "board.js",
+      "ai.js",
+      "app.js",
+      "assets/**/*"
     ]
   },
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2"
   }
 }

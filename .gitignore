@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.exe
 *.blockmap
+*.bak
 .vscode/
 .reasonix/
 .workbuddy/

@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   callAI: (payload) => ipcRenderer.invoke('call-ai', payload),
   getAutoStart: () => ipcRenderer.invoke('get-autostart'),
   setAutoStart: (on) => ipcRenderer.invoke('set-autostart', on),
+  // 加密存储 API Key
+  encryptKey: (plaintext) => ipcRenderer.invoke('encrypt-key', plaintext),
+  decryptKey: (hexData) => ipcRenderer.invoke('decrypt-key', hexData),
   // 系统通知
   showNotification: (args) => ipcRenderer.invoke('show-notification', args),
   // 检查更新
