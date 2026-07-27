@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, screen, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Notification, Tray, Menu } = require('electron');
 const path = require('path');
 
 let mainWindow;
+let tray;
 
 function createWindow() {
   // 根据屏幕大小自适应窗口尺寸
@@ -28,17 +29,39 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
+
+  // 关闭时最小化到托盘，不退出
+  mainWindow.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
+}
+
+function createTray() {
+  const iconPath = path.join(__dirname, 'assets', 'icon.ico');
+  tray = new Tray(iconPath);
+  tray.setToolTip('本周工作安排');
+  const ctx = Menu.buildFromTemplate([
+    { label: '显示窗口', click: () => { mainWindow.show(); mainWindow.focus(); } },
+    { type: 'separator' },
+    { label: '退出', click: () => { app.isQuitting = true; app.quit(); } }
+  ]);
+  tray.setContextMenu(ctx);
+  tray.on('double-click', () => { mainWindow.show(); mainWindow.focus(); });
 }
 
 app.whenReady().then(() => {
   createWindow();
+  createTray();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // 不退出，保留托盘
 });
 
 // AI 调用：在 Node 主进程发起 HTTP 请求，彻底规避浏览器 file:// 的跨域(CORS)限制
@@ -148,6 +171,12 @@ ipcMain.handle('show-notification', (event, { title, body }) => {
     return true;
   }
   return false;
+});
+
+// 完全退出应用（从渲染进程调用）
+ipcMain.handle('quit-app', () => {
+  app.isQuitting = true;
+  app.quit();
 });
 
 // 检查更新：从 GitHub Releases 拉取最新安装包

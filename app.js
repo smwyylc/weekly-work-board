@@ -457,6 +457,9 @@ async function sendChat(){
       aiBubble.innerHTML=mdToHtml(clean,true);
       chatHistory.push({role:'assistant',content:reply});
       removeToolTags();
+      // 自动执行操作，无需用户点击按钮
+      const ops=extractOpsRaw(reply);
+      if(ops.length){const d=execOpsWithDetail(ops);if(d)addToolTag('✅ ' + d)}
       sendBtn.disabled=false;
     });
     window.electronAPI.onAIError((e)=>{
@@ -485,8 +488,8 @@ async function sendChat(){
     document.getElementById('chat').appendChild(aiBubble);
     aiBubble.innerHTML=mdToHtml(stripJsonBlock(reply));
     chatHistory.push({role:'assistant',content:reply});
-    const ops=extractOps(reply);
-    if(ops.length){const n=applyOps(ops);if(n)pushSysMsg('AI 已调整 '+n+' 项任务');}
+    const ops=extractOpsRaw(reply);
+    if(ops.length){const d=execOpsWithDetail(ops);if(d)addToolTag('✅ '+d)}
   }catch(err){
     removeToolTags();
     pushMsg('ai','⚠️ '+err.message+(/invalid api key|401|unauthorized|api.?key/i.test(err.message)?' —— 请点击 ⚙ 填入正确的 API Key':''));
@@ -551,7 +554,7 @@ function getVisibleTasksJSON(){
   return JSON.stringify(visible,null,2);
 }
 
-function extractOps(reply){
+function extractOpsRaw(reply){
   const m=reply.match(/```json\s*([\s\S]*?)```/);
   if(!m)return [];
   try{
@@ -562,30 +565,52 @@ function extractOps(reply){
   return [];
 }
 
-function applyOps(ops){
+function execOpsWithDetail(ops){
   const wk=weekKey(viewWeekStart);
   saveSnapshot();
-  let n=0;
+  let details=[];
   ops.forEach(op=>{
     if(op.action==='add'){
-      tasks.push({id:uid(),content:op.content,people:op.people||[],status:op.status||'todo',day:op.day??null,remindAt:op.remindAt||null,repeat:op.repeat||null,notes:op.notes||null,order:Date.now(),weekKey:wk,createdAt:Date.now()});n++;
+      tasks.push({id:uid(),content:op.content,people:op.people||[],status:op.status||'todo',day:op.day??null,remindAt:op.remindAt||null,repeat:op.repeat||null,notes:op.notes||null,order:Date.now(),weekKey:wk,createdAt:Date.now()});
+      details.push('添加任务「'+(op.content||'').slice(0,20)+'」');
     }else if(op.action==='move'){
-      const t=tasks.find(x=>x.id===op.taskId);if(t){if(op.day)t.weekKey=wk;t.day=op.day??null;t.order=Date.now();n++}
+      const t=tasks.find(x=>x.id===op.taskId);
+      if(t){const from=t.day||'残留';t.day=op.day??null;if(op.day)t.weekKey=wk;t.order=Date.now();details.push('移动「'+(t.content||'').slice(0,20)+'」从'+from+'到'+(op.day||'残留'))}
     }else if(op.action==='edit'){
-      const t=tasks.find(x=>x.id===op.taskId);if(t){if(op.content!=null)t.content=op.content;if(op.people!=null)t.people=op.people;if(op.day!==undefined){if(op.day)t.weekKey=wk;t.day=op.day??null}if(op.remindAt!==undefined)t.remindAt=op.remindAt||null;if(op.repeat!==undefined)t.repeat=op.repeat||null;if(op.notes!==undefined)t.notes=op.notes||null;t.order=Date.now();n++}
+      const t=tasks.find(x=>x.id===op.taskId);
+      if(t){
+        let parts=[];
+        if(op.content!=null&&op.content!==t.content)parts.push('内容');
+        if(op.people!=null)parts.push('人员');
+        if(op.day!==undefined)parts.push('所在日→'+(op.day||'残留'));
+        if(op.remindAt!==undefined)parts.push('提醒→'+op.remindAt);
+        if(op.repeat!==undefined)parts.push('重复周期');
+        if(op.notes!==undefined)parts.push('备注');
+        if(op.content!=null)t.content=op.content;
+        if(op.people!=null)t.people=op.people;
+        if(op.day!==undefined){if(op.day)t.weekKey=wk;t.day=op.day??null}
+        if(op.remindAt!==undefined)t.remindAt=op.remindAt||null;
+        if(op.repeat!==undefined)t.repeat=op.repeat||null;
+        if(op.notes!==undefined)t.notes=op.notes||null;
+        t.order=Date.now();
+        details.push('修改「'+(t.content||'').slice(0,20)+'」'+(parts.length?'('+parts.join(',')+')':''));
+      }
     }else if(op.action==='status'){
-      const t=tasks.find(x=>x.id===op.taskId);if(t){t.status=op.status;n++}
+      const t=tasks.find(x=>x.id===op.taskId);
+      if(t&&t.status!==op.status){const s=STATUS[t.status]?.n||t.status;t.status=op.status;details.push('「'+(t.content||'').slice(0,20)+'」状态:'+s+'→'+(STATUS[op.status]?.n||op.status))}
     }else if(op.action==='delete'){
-      const before=tasks.length;tasks=tasks.filter(x=>x.id!==op.taskId);if(tasks.length<before)n++
+      const t=tasks.find(x=>x.id===op.taskId);
+      if(t){details.push('删除「'+(t.content||'').slice(0,20)+'」');tasks=tasks.filter(x=>x.id!==op.taskId)}
     }else if(op.action==='carryover'){
       const nk=weekKey(addDays(viewWeekStart,7));
-      tasks.forEach(t=>{if(t.weekKey===wk&&t.status!=='done'){t.weekKey=nk;t.day=null;n++}});
+      let c=0;
+      tasks.forEach(t=>{if(t.weekKey===wk&&t.status!=='done'){t.weekKey=nk;t.day=null;c++}});
+      if(c)details.push('滚入下周 '+c+' 项任务');
       viewWeekStart=addDays(viewWeekStart,7);
     }
   });
-  if(n)save();
-  render();
-  return n;
+  if(details.length){save();render();return details.join('；')}
+  return '';
 }
 
 // ============ 撤销（全状态快照） ============
@@ -718,9 +743,9 @@ function bindEvents(){
     if(!btn)return;
     const ops=extractOpsFromHtml(btn.outerHTML);
     if(ops.length){
-      const n=applyOps(ops);
-      btn.replaceWith(document.createTextNode('✅ 已执行'));
-      if(n)pushSysMsg('✅ 已执行 '+n+' 项操作');
+      const d=execOpsWithDetail(ops);
+      if(d)addToolTag('✅ '+d);
+      btn.replaceWith(document.createTextNode('已执行'));
     }
   });
 }
