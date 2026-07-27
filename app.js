@@ -1,4 +1,3 @@
-
 // ============ 配置 ============
 const DAYS_7=[{k:'mon',n:'周一'},{k:'tue',n:'周二'},{k:'wed',n:'周三'},{k:'thu',n:'周四'},{k:'fri',n:'周五'},{k:'sat',n:'周六'},{k:'sun',n:'周日'}];
 function getDays(){const w=weekMode;return w===7?DAYS_7:DAYS_7.slice(0,5);}
@@ -528,7 +527,7 @@ async function sendChat(){
       removeToolTags();
       // 自动执行操作，无需用户点击按钮
       const ops=extractOpsRaw(reply);
-      if(ops.length){const d=execOpsWithDetail(ops);if(d)addToolTag('✅ ' + d)}
+      if(ops.length)execOpsWithDetail(ops);
       sendBtn.disabled=false;
     });
     window.electronAPI.onAIError((e)=>{
@@ -558,7 +557,7 @@ async function sendChat(){
     aiBubble.innerHTML=mdToHtml(stripJsonBlock(reply));
     chatHistory.push({role:'assistant',content:reply});
     const ops=extractOpsRaw(reply);
-    if(ops.length){const d=execOpsWithDetail(ops);if(d)addToolTag('✅ '+d)}
+    if(ops.length)execOpsWithDetail(ops)
   }catch(err){
     removeToolTags();
     pushMsg('ai','⚠️ '+err.message+(/invalid api key|401|unauthorized|api.?key/i.test(err.message)?' —— 请点击 ⚙ 填入正确的 API Key':''));
@@ -586,12 +585,13 @@ function generateReport(){
     if(list.length)daySummary+=`${byDay[d.k]||d.k}：${list.map(t=>t.content+(t.status!=='todo'?'('+STATUS[t.status].n+')':'')).join('、')}\n`;
   });
   vars.daySummary=daySummary||'（本周暂无任务安排）';
-  // 渲染模板
   const tmpl=reportTemplate||DEFAULT_REPORT_TEMPLATE;
   const text=tmpl.replace(/\{\{(\w+)\}\}/g,(_,k)=>vars[k]!==undefined?vars[k]:'{{'+k+'}}');
-  document.getElementById('report-text').value=text;
-  document.getElementById('report-overlay').classList.add('show');
-  setTimeout(()=>document.getElementById('report-text').focus(),80);
+  // 直接填入 AI 输入框
+  const el=document.getElementById('ai-text');
+  el.value=text;
+  el.focus();
+  pushSysMsg('📊 周报模板已填入，可修改后按 Enter 发送');
 }
 function saveTemplate(){
   reportTemplate=document.getElementById('report-text').value.trim();
@@ -604,13 +604,10 @@ function resetTemplate(){
   document.getElementById('report-text').value=DEFAULT_REPORT_TEMPLATE;
   pushSysMsg('🔄 已恢复默认模板');
 }
-function sendReport(){
-  const text=document.getElementById('report-text').value.trim();
-  if(!text)return;
-  document.getElementById('report-overlay').classList.remove('show');
-  const el=document.getElementById('ai-text');
-  el.value=text;
-  sendChat();
+function openTemplateEditor(){
+  document.getElementById('report-text').value=reportTemplate||DEFAULT_REPORT_TEMPLATE;
+  document.getElementById('report-overlay').classList.add('show');
+  setTimeout(()=>document.getElementById('report-text').focus(),80);
 }
 
 function getVisibleTasksJSON(){
@@ -647,14 +644,15 @@ function extractOpsRaw(reply){
 function execOpsWithDetail(ops){
   const wk=weekKey(viewWeekStart);
   saveSnapshot();
-  let details=[];
+  let changed=false;
   ops.forEach(op=>{
+    let detail='';
     if(op.action==='add'){
       tasks.push({id:uid(),content:op.content,people:op.people||[],status:op.status||'todo',day:op.day??null,remindAt:op.remindAt||null,repeat:op.repeat||null,notes:op.notes||null,priority:op.priority||'normal',order:Date.now(),weekKey:wk,createdAt:Date.now()});
-      details.push('添加任务「'+(op.content||'').slice(0,20)+'」');
+      detail='📋 添加「'+(op.content||'').slice(0,20)+'」';
     }else if(op.action==='move'){
       const t=tasks.find(x=>x.id===op.taskId);
-      if(t){const from=t.day||'残留';t.day=op.day??null;if(op.day)t.weekKey=wk;t.order=Date.now();details.push('移动「'+(t.content||'').slice(0,20)+'」从'+from+'到'+(op.day||'残留'))}
+      if(t){const from=t.day||'残留';t.day=op.day??null;if(op.day)t.weekKey=wk;t.order=Date.now();detail='➡️ 移动「'+(t.content||'').slice(0,20)+'」到'+(op.day||'残留')}
     }else if(op.action==='edit'){
       const t=tasks.find(x=>x.id===op.taskId);
       if(t){
@@ -674,24 +672,24 @@ function execOpsWithDetail(ops){
         if(op.notes!==undefined)t.notes=op.notes||null;
         if(op.priority!==undefined)t.priority=op.priority;
         t.order=Date.now();
-        details.push('修改「'+(t.content||'').slice(0,20)+'」'+(parts.length?'('+parts.join(',')+')':''));
+        detail='✏️ 修改「'+(t.content||'').slice(0,20)+'」'+(parts.length?'('+parts.join(',')+')':'');
       }
     }else if(op.action==='status'){
       const t=tasks.find(x=>x.id===op.taskId);
-      if(t&&t.status!==op.status){const s=STATUS[t.status]?.n||t.status;t.status=op.status;if(op.notes!==undefined)t.notes=op.notes||null;details.push('「'+(t.content||'').slice(0,20)+'」状态:'+s+'→'+(STATUS[op.status]?.n||op.status)+(op.notes?'('+op.notes.slice(0,15)+')':''))}
+      if(t&&t.status!==op.status){const s=STATUS[t.status]?.n||t.status;t.status=op.status;if(op.notes!==undefined)t.notes=op.notes||null;detail='「'+(t.content||'').slice(0,20)+'」'+s+'→'+(STATUS[op.status]?.n||op.status)+(op.notes?'('+op.notes.slice(0,15)+')':'')}
     }else if(op.action==='delete'){
       const t=tasks.find(x=>x.id===op.taskId);
-      if(t){details.push('删除「'+(t.content||'').slice(0,20)+'」');tasks=tasks.filter(x=>x.id!==op.taskId)}
+      if(t){detail='🗑 删除「'+(t.content||'').slice(0,20)+'」';tasks=tasks.filter(x=>x.id!==op.taskId)}
     }else if(op.action==='carryover'){
       const nk=weekKey(addDays(viewWeekStart,7));
       let c=0;
       tasks.forEach(t=>{if(t.weekKey===wk&&t.status!=='done'){t.weekKey=nk;t.day=null;c++}});
-      if(c)details.push('滚入下周 '+c+' 项任务');
+      if(c)detail='⏭ 滚入下周 '+c+' 项任务';
       viewWeekStart=addDays(viewWeekStart,7);
     }
+    if(detail){changed=true;addToolTag(detail)}
   });
-  if(details.length){save();render();return details.join('；')}
-  return '';
+  if(changed){save();render()}
 }
 
 // ============ 撤销（全状态快照） ============
@@ -719,10 +717,10 @@ function bindEvents(){
   document.getElementById('btn-newtask').addEventListener('click',()=>openTaskModal(null));
   document.getElementById('btn-nextweek').addEventListener('click',carryOverToNextWeek);
   document.getElementById('btn-report').addEventListener('click',generateReport);
-  document.querySelector('[data-action="send-report"]').addEventListener('click',sendReport);
   document.querySelector('[data-action="save-template"]').addEventListener('click',saveTemplate);
   document.querySelector('[data-action="reset-template"]').addEventListener('click',resetTemplate);
-  document.querySelector('[data-close="report-modal"]').addEventListener('click',()=>document.getElementById('report-overlay').classList.remove('show'));
+  document.querySelector('[data-close="report-modal"]')?.addEventListener('click',()=>document.getElementById('report-overlay').classList.remove('show'));
+  document.getElementById('ai-template')?.addEventListener('click',openTemplateEditor);
 
 
 
@@ -860,8 +858,7 @@ function bindEvents(){
     if(!btn)return;
     const ops=extractOpsFromHtml(btn.outerHTML);
     if(ops.length){
-      const d=execOpsWithDetail(ops);
-      if(d)addToolTag('✅ '+d);
+      execOpsWithDetail(ops);
       btn.replaceWith(document.createTextNode('已执行'));
     }
   });
@@ -995,6 +992,8 @@ function showReminderToast(content,time){
   el.style.display='flex';
   clearTimeout(el._timer);
   el._timer=setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.style.display='none',300)},6000);
-  el.onclick=()=>{clearTimeout(el._timer);el.classList.remove('show');setTimeout(()=>el.style.display='none',300)};
+  if(el._clickHandler){el.removeEventListener('click',el._clickHandler)};
+  el._clickHandler=()=>{clearTimeout(el._timer);el.classList.remove('show');setTimeout(()=>el.style.display='none',300)};
+  el.addEventListener('click',el._clickHandler);
 }
 
