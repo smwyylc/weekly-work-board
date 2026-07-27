@@ -165,7 +165,7 @@ window.WB = window.WB || {};
     if (repoBtn) {
       repoBtn.addEventListener('click', function() {
         if (window.electronAPI && window.electronAPI.openURL) {
-          window.electronAPI.openURL('https://github.com/smwyylc/weekly-work-board');
+          window.electronAPI.openURL('https://github.com/smwyylc/work-in-progress');
         }
       });
     }

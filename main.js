@@ -228,7 +228,7 @@ ipcMain.handle('open-url', (event, url) => {
 // 检查更新：从 GitHub Releases 拉取最新安装包
 ipcMain.handle('check-update', async () => {
   try {
-    const resp = await fetch('https://api.github.com/repos/smwyylc/weekly-work-board/releases/latest', {
+    const resp = await fetch('https://api.github.com/repos/smwyylc/work-in-progress/releases/latest', {
       headers: { 'Accept': 'application/vnd.github+json' },
       signal: AbortSignal.timeout(10000)
     });
