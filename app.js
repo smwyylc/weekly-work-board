@@ -414,7 +414,23 @@ async function callAI(payload){
   return data;
 }
 
-function stripJsonBlock(s){return (s||'').replace(/```json[\s\S]*?```/g,'').replace(/\n?\s*\[\s*\{\s*"action"[\s\S]*?\}\s*\]\s*/g,'').replace(/\n?\s*\{\s*"operations"[\s\S]*?\}\s*/g,'').trim()}
+function stripJsonBlock(s){
+  let r=(s||'');
+  r=r.replace(/```json[\s\S]*?```/g,'');
+  r=r.replace(/\n?\s*\{\s*"operations"[\s\S]*?\}\s*/g,'');
+  // 去除裸 [{"action":...}] 数组（含多对象），逐元素删除避免嵌套干扰
+  while(true){
+    const m=r.match(/\n?\s*\[\s*((?:\s*\{[^}]*\}\s*,?\s*)+)\]\s*/);
+    if(!m)break;
+    const inner=m[1];
+    if(/["']action["']\s*:/.test(inner)||/["']operations["']\s*:/.test(inner)){
+      r=r.slice(0,m.index)+r.slice(m.index+m[0].length);
+    }else break;
+  }
+  // 去除裸 {"action":"...",...} 单对象
+  r=r.replace(/\n?\s*\{\s*["']action["']\s*:[\s\S]*?\}\s*/g,'');
+  return r.trim();
+}
 let _toolTags=[];
 function addToolTag(s){const d=document.createElement('div');d.className='msg tool-tag';d.textContent=s;document.getElementById('chat').appendChild(d);d.scrollIntoView();_toolTags.push(d)}
 function removeToolTags(){_toolTags.forEach(d=>d.remove());_toolTags=[]}
@@ -480,7 +496,7 @@ async function sendChat(){
       if(c===null)return;
       if(!typing.parentNode){document.getElementById('chat').appendChild(aiBubble);aiBubble.appendChild(typing);removeToolTags()}
       rawContent+=c;
-      const displayContent=rawContent.replace(/```json[\s\S]*?```/g,'').trim();
+      const displayContent=stripJsonBlock(rawContent);
       if(displayContent){
         aiBubble.innerHTML=mdToHtml(displayContent);
         if(typing)aiBubble.appendChild(typing);
@@ -580,13 +596,26 @@ function getVisibleTasksJSON(){
 }
 
 function extractOpsRaw(reply){
+  if(!reply)return [];
+  // 1) ```json 包裹的
   const m=reply.match(/```json\s*([\s\S]*?)```/);
-  if(!m)return [];
-  try{
-    const obj=JSON.parse(m[1]);
-    if(Array.isArray(obj.operations))return obj.operations;
-    if(Array.isArray(obj))return obj;
-  }catch(e){}
+  if(m){
+    try{
+      const obj=JSON.parse(m[1]);
+      if(Array.isArray(obj.operations))return obj.operations;
+      if(Array.isArray(obj))return obj;
+    }catch(e){}
+  }
+  // 2) 裸 {"operations":[...]}
+  const m2=reply.match(/\{\s*["']operations["']\s*:\s*\[([\s\S]*?)\]\s*\}/);
+  if(m2){
+    try{const obj=JSON.parse(m2[0]);if(Array.isArray(obj.operations))return obj.operations}catch(e){}
+  }
+  // 3) 裸 [{"action":...},...]
+  const m3=reply.match(/\[\s*\{[^}]*["']action["'][\s\S]*?\}\s*\]/);
+  if(m3){
+    try{const arr=JSON.parse(m3[0]);if(Array.isArray(arr))return arr}catch(e){}
+  }
   return [];
 }
 
