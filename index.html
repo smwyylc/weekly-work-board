@@ -370,6 +370,15 @@
   .mbtn.ghost{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
   .mbtn.ghost:hover{background:var(--line)}
   .hint{font-size:10px;color:var(--muted);margin-top:3px}
+  .repeat-checks{display:flex;flex-wrap:wrap;gap:4px}
+  .rcheck{
+    font-size:12px; padding:4px 9px; border:1px solid var(--line);
+    border-radius:6px; cursor:pointer; transition:.15s;
+    display:inline-flex; align-items:center; gap:4px;
+    user-select:none;
+  }
+  .rcheck:has(:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+  .rcheck input{display:none}
   .set-section{margin-top:3px;padding-top:12px;border-top:1px solid var(--line)}
   .set-section:first-of-type{border-top:none;padding-top:0}
   .set-section h3{font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:500;letter-spacing:.3px}
@@ -517,6 +526,10 @@
         </select>
       </div>
     </div>
+    <div class="row">
+      <label>备注</label>
+      <textarea id="fNotes" placeholder="补充说明、链接、注意事项等" style="min-height:44px"></textarea>
+    </div>
     <div id="taskExtra" style="display:none">
       <div class="row"><label>状态</label><select id="fStatus">
         <option value="todo">待开始</option>
@@ -535,12 +548,16 @@
         </div>
         <div class="hint">设置后到点弹出系统通知</div>
       </div>
-      <div class="row"><label>重复周期（可选）</label><select id="fRepeat">
-        <option value="">不重复</option><option value="daily">每日（工作日）</option>
-        <option value="mon">每周一</option><option value="tue">每周二</option>
-        <option value="wed">每周三</option><option value="thu">每周四</option><option value="fri">每周五</option>
-      </select><div class="hint">设置后每天/每周自动生成新任务</div></div>
-      <div class="row"><label>备注（可选）</label><textarea id="fNotes" placeholder="补充说明、链接、注意事项等" style="min-height:50px"></textarea></div>
+      <div class="row"><label>重复周期（可多选）</label>
+        <div class="repeat-checks" id="fRepeatGroup">
+          <label class="rcheck"><input type="checkbox" value="daily"> 每日（工作日）</label>
+          <label class="rcheck"><input type="checkbox" value="mon"> 周一</label>
+          <label class="rcheck"><input type="checkbox" value="tue"> 周二</label>
+          <label class="rcheck"><input type="checkbox" value="wed"> 周三</label>
+          <label class="rcheck"><input type="checkbox" value="thu"> 周四</label>
+          <label class="rcheck"><input type="checkbox" value="fri"> 周五</label>
+        </div>
+        <div class="hint">设置后每天/每周自动生成新任务</div></div>
     </div>
     <div style="text-align:center;margin-bottom:10px">
       <button id="taskToggleExtra" type="button" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;padding:4px;font-family:var(--ui)">📋 更多选项</button>
@@ -640,6 +657,20 @@
       </div>
     </div>
     <div id="aboutChangelog" class="about-section" style="display:none">
+      <h3>v1.0.0 🎉</h3>
+      <ul style="margin:4px 0 10px 16px;font-size:13px;line-height:1.8">
+        <li>🎨 项目更名：Work In Progress (WIP)</li>
+        <li>🖼 卡片布局重构：× 浮层不留位，标签行独立，统一 tag-pill 药丸样式</li>
+        <li>📌 表头固定 + 拖拽插入指示线</li>
+        <li>🔧 重复周期支持多选（每日/多日，互斥）</li>
+        <li>📝 备注字段常驻可见，不再隐藏于「更多选项」</li>
+        <li>🤖 AI 操作栏移出对话框，显示详细操作摘要</li>
+        <li>🔗 设置中新增仓库链接按钮</li>
+        <li>🔌 AI 对话框可拖拽调整宽度并记忆</li>
+        <li>🔒 残留列 done 保护：多处拦截状态/移动操作</li>
+        <li>📊 排序改为拖拽优先于优先级</li>
+        <li>🐛 修复：发送按钮 disabled、版本比较、mdToHtml JSON 提取等</li>
+      </ul>
       <h3>v1.1.0</h3>
       <ul style="margin:4px 0 10px 16px;font-size:13px;line-height:1.8">
         <li>🏗 架构重构：将 1073 行单体 app.js 拆分为 5 个模块文件</li>

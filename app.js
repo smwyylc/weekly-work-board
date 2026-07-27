@@ -73,6 +73,21 @@ window.WB = window.WB || {};
       clearBtn.addEventListener('click', function() { document.getElementById('fRemind').value = ''; });
     }
 
+    // 重复周期互斥：每日 与 具体星期互斥
+    var repeatGroup = document.getElementById('fRepeatGroup');
+    if (repeatGroup) {
+      repeatGroup.addEventListener('change', function(e) {
+        var cb = e.target;
+        if (!cb || cb.type !== 'checkbox') return;
+        var checks = repeatGroup.querySelectorAll('input[type=checkbox]');
+        if (cb.value === 'daily' && cb.checked) {
+          checks.forEach(function(c) { if (c.value !== 'daily') c.checked = false; });
+        } else if (cb.value !== 'daily' && cb.checked) {
+          checks.forEach(function(c) { if (c.value === 'daily') c.checked = false; });
+        }
+      });
+    }
+
     // 设置弹窗
     document.querySelectorAll('[data-close="set-modal"]').forEach(function(b) {
       b.addEventListener('click', WB.closeSettings);

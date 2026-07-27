@@ -276,9 +276,9 @@ window.WB = window.WB || {};
       '当前看板上的任务数据（JSON）：\n' + WB.getVisibleTasksJSON() + '\n\n' +
       '可用 day：mon(周一) tue(周二) wed(周三) thu(周四) fri(周五) sat(周六) sun(周日)，null（残留/未排期）。当前设置为 ' + WB.state.weekMode + ' 天工作周。\n\n' +
       '当用户增删改任务时，在回复末尾附加 ```json 代码块，包含 operations 数组：\n' +
-      '- {"action":"add","content":"...","people":["..."],"status":"todo|doing|done|blocked","day":"mon"|...|null,"beforeTaskId?":"...","repeat?":"daily|mon|tue|wed|thu|fri","remindAt?":"HH:MM","notes?":"...","priority?":"low|normal|urgent"}\n' +
+      '- {"action":"add","content":"...","people":["..."],"status":"todo|doing|done|blocked","day":"mon"|...|null,"beforeTaskId?":"...","repeat?":"daily,mon,tue,wed,thu,fri（逗号分隔可多选）","remindAt?":"HH:MM","notes?":"...","priority?":"low|normal|urgent"}\n' +
       '- {"action":"move","taskId":"...","day":"mon"|...|null}\n' +
-      '- {"action":"edit","taskId":"...","content?":"...","people?":[...],"day?":"...","repeat?":"...","remindAt?":"HH:MM或null","notes?":"...","priority?":"low|normal|urgent"}\n' +
+      '- {"action":"edit","taskId":"...","content?":"...","people?":[...],"day?":"...","repeat?":"daily,mon,...（逗号多选）","remindAt?":"HH:MM或null","notes?":"...","priority?":"low|normal|urgent"}\n' +
       '- {"action":"status","taskId":"...","status":"todo|doing|done|blocked","notes?":"状态变更原因（可选）"}\n' +
       '- {"action":"delete","taskId":"..."}\n' +
       '- {"action":"carryover"}\n\n' +

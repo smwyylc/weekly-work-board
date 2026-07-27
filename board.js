@@ -98,15 +98,16 @@ window.WB = window.WB || {};
     }).join('');
     var resTag = t.day === null ? '<span class="res-tag">残留</span>' : '';
     var remindTag = t.remindAt ? '<span class="tag-pill">⏰ ' + t.remindAt + '</span>' : '';
-    var repeatIcon = t.repeat ? '<span class="tag-pill">↻ ' + ({'daily':'每日', mon:'每周一', tue:'每周二', wed:'每周三', thu:'每周四', fri:'每周五'}[t.repeat] || t.repeat) + '</span>' : '';
-    var notesIcon = t.notes ? '<span class="notes-icon">📎</span>' : '';
+    var repeatIcon = t.repeat ? '<span class="tag-pill">↻ ' + t.repeat.split(',').map(function(r) {
+      return ({'daily':'每日', mon:'周一', tue:'周二', wed:'周三', thu:'周四', fri:'周五'}[r.trim()] || r.trim());
+    }).join('·') + '</span>' : '';
     var priMap = {urgent:'↑ 紧急', low:'↓ 低'};
     var priTag = t.priority && t.priority !== 'normal' ? '<span class="tag-pill tag-pri">' + priMap[t.priority] + '</span>' : '';
     var tags = [repeatIcon, remindTag, priTag].filter(Boolean).join('');
     return '<div class="card ' + (t.status === 'done' ? 'done' : '') + '" draggable="true" data-id="' + t.id + '" data-action="edit" data-task-id="' + t.id + '">' +
       '<button class="del" data-action="delete" data-task-id="' + t.id + '" title="删除">×</button>' +
       resTag +
-      '<div class="title">' + WB.hl(WB.esc(t.content), q) + notesIcon + '</div>' +
+      '<div class="title">' + WB.hl(WB.esc(t.content), q) + '</div>' +
       (people ? '<div class="meta">' + people + '</div>' : '') +
       (tags ? '<div class="tags-row">' + tags + '</div>' : '') +
       '<div class="foot">' +
@@ -203,7 +204,7 @@ window.WB = window.WB || {};
         document.getElementById('fStatus').value = t.status;
         document.getElementById('fPeople').value = (t.people||[]).join(', ');
         document.getElementById('fRemind').value = t.remindAt || '';
-        document.getElementById('fRepeat').value = t.repeat || '';
+        setRepeatChecks(t.repeat || '');
         document.getElementById('fNotes').value = t.notes || '';
         document.getElementById('fPriority').value = t.priority || 'normal';
       }
@@ -220,10 +221,22 @@ window.WB = window.WB || {};
     document.getElementById('fStatus').value = 'todo';
     document.getElementById('fPeople').value = '';
     document.getElementById('fRemind').value = '';
-    document.getElementById('fRepeat').value = '';
+    setRepeatChecks('');
     document.getElementById('fNotes').value = '';
     document.getElementById('fPriority').value = 'normal';
   };
+
+  function setRepeatChecks(vals) {
+    var arr = (vals || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    var checks = document.querySelectorAll('#fRepeatGroup input[type=checkbox]');
+    checks.forEach(function(cb) { cb.checked = arr.indexOf(cb.value) >= 0; });
+  }
+  function getRepeatChecks() {
+    var vals = [];
+    var checks = document.querySelectorAll('#fRepeatGroup input[type=checkbox]:checked');
+    checks.forEach(function(cb) { vals.push(cb.value); });
+    return vals.join(',');
+  }
 
   WB.closeTaskModal = function() {
     var content = document.getElementById('fContent').value.trim();
@@ -240,7 +253,7 @@ window.WB = window.WB || {};
     var people = document.getElementById('fPeople').value.split(/[,，]/).map(function(s) { return s.trim(); }).filter(Boolean);
     var notes = document.getElementById('fNotes').value.trim() || null;
     var remindAt = document.getElementById('fRemind').value || null;
-    var repeat = document.getElementById('fRepeat').value || null;
+    var repeat = getRepeatChecks() || null;
     var priority = document.getElementById('fPriority').value || 'normal';
     if (WB.state.editingId) {
       var t = WB.state.tasks.find(function(x) { return x.id === WB.state.editingId; });
@@ -331,32 +344,35 @@ window.WB = window.WB || {};
       if (t.status === 'done' && !t._nextCreated) {
         var origRepeat = t.repeat;
         var created = false;
-        if (origRepeat === 'daily') {
-          var next = new Date(today);
-          for (var i = 0; i < 7; i++) {
-            next.setDate(next.getDate() + 1);
-            var nk = ['sun','mon','tue','wed','thu','fri','sat'][next.getDay()];
-            if (nk !== 'sat' && nk !== 'sun') {
-              WB.state.tasks.push({
-                id: WB.uid(), content: t.content, people: t.people ? [...t.people] : [],
-                status: 'todo', day: nk, remindAt: t.remindAt, repeat: origRepeat,
-                order: Date.now(), weekKey: WB.weekKey(next), createdAt: Date.now()
-              });
-              changed = true;
-              created = true;
-              break;
+        var repeatRules = origRepeat.split(',').map(function(s){return s.trim();}).filter(Boolean);
+        var bestDate = null, bestDay = null;
+
+        repeatRules.forEach(function(rule) {
+          if (rule === 'daily') {
+            var next = new Date(today);
+            for (var i = 0; i < 7; i++) {
+              next.setDate(next.getDate() + 1);
+              var nk = ['sun','mon','tue','wed','thu','fri','sat'][next.getDay()];
+              if (nk !== 'sat' && nk !== 'sun') {
+                if (!bestDate || next < bestDate) { bestDate = new Date(next); bestDay = nk; }
+                break;
+              }
             }
+          } else if (dayMap[rule]) {
+            var targetDay = dayMap[rule];
+            var d = (targetDay - today.getDay() + 7) % 7;
+            if (d === 0) d = 7;
+            var nextWeek = new Date(today);
+            nextWeek.setDate(nextWeek.getDate() + d);
+            if (!bestDate || nextWeek < bestDate) { bestDate = new Date(nextWeek); bestDay = rule; }
           }
-        } else if (origRepeat === 'mon' || origRepeat === 'tue' || origRepeat === 'wed' || origRepeat === 'thu' || origRepeat === 'fri') {
-          var nextWeek = new Date(today);
-          var targetDay = ['sun','mon','tue','wed','thu','fri','sat'].indexOf(origRepeat);
-          var d = (targetDay - nextWeek.getDay() + 7) % 7;
-          if (d === 0) d = 7;
-          nextWeek.setDate(nextWeek.getDate() + d);
+        });
+
+        if (bestDate) {
           WB.state.tasks.push({
             id: WB.uid(), content: t.content, people: t.people ? [...t.people] : [],
-            status: 'todo', day: origRepeat, remindAt: t.remindAt, repeat: origRepeat,
-            order: Date.now(), weekKey: WB.weekKey(nextWeek), createdAt: Date.now()
+            status: 'todo', day: bestDay, remindAt: t.remindAt, repeat: origRepeat,
+            order: Date.now(), weekKey: WB.weekKey(bestDate), createdAt: Date.now()
           });
           changed = true;
           created = true;
