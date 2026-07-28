@@ -1,6 +1,6 @@
 {
   "name": "workinprogress",
-  "version": "1.0.2",
+  "version": "1.0.0",
   "description": "Work In Progress — 本周工作安排",
   "main": "main.js",
   "author": "WorkBuddy",
@@ -9,8 +9,8 @@
     "dist": "electron-builder"
   },
   "build": {
-    "appId": "com.workbuddy.wip",
-    "productName": "Work In Progress",
+    "appId": "com.workbuddy.workboard",
+    "productName": "WorkBoard",
     "copyright": "Copyright © 2026",
     "directories": {
       "output": "dist",
@@ -20,15 +20,15 @@
       "target": [
         "nsis"
       ],
-      "icon": "assets/icon.ico",
-      "sign": false
+      "sign": false,
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "WIP"
+      "shortcutName": "WorkBoard"
     },
     "files": [
       "index.html",

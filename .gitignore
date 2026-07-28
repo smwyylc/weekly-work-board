@@ -6,3 +6,4 @@ dist/
 .vscode/
 .reasonix/
 .workbuddy/
+builder-effective-config.yaml
