@@ -29,6 +29,7 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
+  mainWindow.webContents.setZoomFactor(1.1);
 
   // 关闭时最小化到托盘，不退出
   mainWindow.on('close', (e) => {
