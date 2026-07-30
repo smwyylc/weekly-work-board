@@ -17,6 +17,9 @@ window.WB = window.WB || {};
     WB.updateAISummary();
     document.getElementById('sAutostart').checked = WB.state.autoStart;
     document.getElementById('sWeekmode').value = String(WB.state.weekMode);
+    var zoom = WB.state.zoomFactor || 1.0;
+    document.getElementById('sZoom').value = zoom;
+    document.getElementById('sZoomVal').textContent = Math.round(zoom * 100) + '%';
     document.getElementById('setOverlay').classList.add('show');
   };
 
@@ -72,6 +75,9 @@ window.WB = window.WB || {};
     WB.state.autoStart = want;
     var newWeek = parseInt(document.getElementById('sWeekmode').value) || 5;
     if (newWeek !== WB.state.weekMode) { WB.state.weekMode = newWeek; WB.render(); }
+    var newZoom = parseFloat(document.getElementById('sZoom').value) || 1.0;
+    WB.state.zoomFactor = newZoom;
+    document.documentElement.style.zoom = newZoom;
     WB.save();
     WB.closeSettings();
     if (WB.pushSysMsg) WB.pushSysMsg('✅ 设置已保存 — ' + (preset === 'opencode' ? 'opencode.ai（免费）' : WB.state.aiSettings.base));
@@ -284,7 +290,12 @@ window.WB = window.WB || {};
       '7. 用户说"提醒我"或"到时提醒"时，通过 remindAt 字段设置提醒时间（格式 HH:MM，如14:25）。本应用支持到点系统通知，直接设置即可，不要说做不到。\n' +
       '8. 【重要】JSON 操作块必须用 ```json 包裹，回复正文中绝对不要出现任何裸露的 JSON 数组或对象。\n' +
       '9. 优先级默认为一般（normal），除非用户明确说"加急""重要""优先""紧急"等，否则不要主动设置或修改 priority 字段。\n' +
-      '10. 不要将已完成（status: done）的任务移入残留列（day: null）——已完成任务只留在原列中，残留列仅展示未完成的任务。';
+      '10. 不要将已完成（status: done）的任务移入残留列（day: null）——已完成任务只留在原列中，残留列仅展示未完成的任务。\n' +
+      '11. 【去重】add 操作前先检查看板上是否已存在"内容相同且日期相同"的任务。如果已存在则跳过 add，在回复中说明"已存在，未重复添加"。\n' +
+      '12. 【先查再做】执行 delete/status/edit/move 前，先确认 taskId 在看板 JSON 中真实存在。如果用户说的任务名找不到，列出当前看板上相近的任务名让用户确认，不要自作主张操作其他任务。\n' +
+      '13. 【还原语义】用户说"还原"时，指撤销最近一次操作。看板支持撤销（Ctrl+Z），直接告诉你做了撤销即可，无需手动 add 任务回来。\n' +
+      '14. 【被质疑时重新检查】如果用户说"不对""错了""没还原对"等质疑的话，先仔细阅读上面 JSON 的最新数据再回答，不要凭记忆或之前的对话内容来判断。\n' +
+      '15. 【一个操作只执行一次】如果你上一轮已经输出过某个操作的 JSON，且系统已执行（你会在对话历史中看到[系统]标记的操作结果），不要再次输出相同的操作。';
   };
 
   WB.sendChat = async function() {
@@ -303,8 +314,8 @@ window.WB = window.WB || {};
     var messages = [
       {role:'system', content:WB.buildPrompt()}
     ].concat(
-      WB.state.chatHistory.filter(function(m) { return m.role === 'user' || m.role === 'assistant'; }).slice(0, -1).slice(-5).map(function(m) {
-        return {role: m.role === 'user' ? 'user' : 'assistant', content: m.content};
+      WB.state.chatHistory.filter(function(m) { return m.role === 'user' || m.role === 'assistant' || m.role === 'system'; }).slice(0, -1).slice(-8).map(function(m) {
+        return {role: m.role, content: m.content};
       }),
       [{role:'user', content:userMsg}]
     );
@@ -372,6 +383,8 @@ window.WB = window.WB || {};
             note.innerHTML = summaries.map(function(s){return WB.esc(s);}).join('<br>');
             var chat = document.getElementById('aiBody');
             chat.insertBefore(note, aiBubble.nextSibling);
+            // 操作结果回写 chatHistory，让 AI 下一轮知道实际执行情况
+            WB.state.chatHistory.push({role:'system', content:'[系统] 已执行：' + summaries.join('；')});
           }
         }
         sendBtn.disabled = false;
@@ -381,7 +394,7 @@ window.WB = window.WB || {};
         finished = true;
         cleanup();
         
-        WB.pushMsg('ai', '⚠️ ' + (e||'流式请求失败') + (/invalid api key|401|unauthorized|api.?key/i.test(e||'') ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
+        WB.pushMsg('bot', '⚠️ ' + (e||'流式请求失败') + (/invalid api key|401|unauthorized|api.?key/i.test(e||'') ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
         sendBtn.disabled = false;
       });
       try {
@@ -391,7 +404,7 @@ window.WB = window.WB || {};
           finished = true;
           cleanup();
           
-          WB.pushMsg('ai', '⚠️ ' + (e.message||e) + (/invalid api key|401|unauthorized|api.?key/i.test(e.message||'') ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
+          WB.pushMsg('bot', '⚠️ ' + (e.message||e) + (/invalid api key|401|unauthorized|api.?key/i.test(e.message||'') ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
           sendBtn.disabled = false;
         }
       }
@@ -417,11 +430,12 @@ window.WB = window.WB || {};
           note2.className = 'ops-note';
           note2.innerHTML = summaries2.map(function(s){return WB.esc(s);}).join('<br>');
           document.getElementById('aiBody').insertBefore(note2, aiBubble2.nextSibling);
+          WB.state.chatHistory.push({role:'system', content:'[系统] 已执行：' + summaries2.join('；')});
         }
       }
     } catch(err) {
       
-      WB.pushMsg('ai', '⚠️ ' + err.message + (/invalid api key|401|unauthorized|api.?key/i.test(err.message) ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
+      WB.pushMsg('bot', '⚠️ ' + err.message + (/invalid api key|401|unauthorized|api.?key/i.test(err.message) ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
     } finally {
       sendBtn.disabled = false;
     }

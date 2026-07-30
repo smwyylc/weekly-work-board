@@ -26,7 +26,8 @@ window.WB = window.WB || {};
       WB.state.autoStart = !!cfg.autoStart;
       WB.state.weekMode = cfg.weekMode || 5;
       WB.state.aiWidth = cfg.aiWidth || 360;
-    } catch(e) { WB.state.autoStart = false; WB.state.weekMode = 5; }
+      WB.state.zoomFactor = cfg.zoomFactor || 1.0;
+    } catch(e) { WB.state.autoStart = false; WB.state.weekMode = 5; WB.state.aiWidth = 360; WB.state.zoomFactor = 1.0; }
 
     try {
       WB.state.chatHistory = JSON.parse(localStorage.getItem('ww_chat')||'[]').slice(-30);
@@ -37,7 +38,13 @@ window.WB = window.WB || {};
   };
 
   WB.save = function() {
-    localStorage.setItem('ww_tasks', JSON.stringify(WB.state.tasks));
+    // 序列化前剥离运行时临时字段（_ 前缀），避免污染持久化数据
+    var cleanTasks = WB.state.tasks.map(function(t) {
+      var c = {};
+      for (var k in t) { if (k.charAt(0) !== '_') c[k] = t[k]; }
+      return c;
+    });
+    localStorage.setItem('ww_tasks', JSON.stringify(cleanTasks));
 
     // AI 设置存入时剥离 key 字段，key 单独加密存储
     var ai = WB.state.aiSettings;
@@ -55,7 +62,8 @@ window.WB = window.WB || {};
     localStorage.setItem('ww_cfg', JSON.stringify({
       autoStart: WB.state.autoStart,
       weekMode: WB.state.weekMode,
-      aiWidth: WB.state.aiWidth
+      aiWidth: WB.state.aiWidth,
+      zoomFactor: WB.state.zoomFactor
     }));
 
     localStorage.setItem('ww_chat', JSON.stringify(WB.state.chatHistory.slice(-30)));

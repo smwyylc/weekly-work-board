@@ -93,6 +93,15 @@ window.WB = window.WB || {};
       b.addEventListener('click', WB.closeSettings);
     });
     document.querySelector('[data-action="save-settings"]').addEventListener('click', WB.saveSettings);
+    // 字号滑块实时预览
+    var sZoom = document.getElementById('sZoom');
+    if (sZoom) {
+      sZoom.addEventListener('input', function() {
+        var v = parseFloat(this.value) || 1.0;
+        document.getElementById('sZoomVal').textContent = Math.round(v * 100) + '%';
+        document.documentElement.style.zoom = v;
+      });
+    }
     var sExport = document.getElementById('sExport');
     if (sExport) {
       sExport.addEventListener('click', function() { WB.closeSettings(); setTimeout(WB.exportData, 100); });
@@ -145,7 +154,7 @@ window.WB = window.WB || {};
           updateBtn.disabled = false;
           return;
         }
-        hint.textContent = '发现 v' + info.version + '（' + Math.round(info.size/1048576) + 'MB）— ' + info.body.slice(0,80);
+        hint.textContent = '发现 v' + info.version + '（' + Math.round((info.size||0)/1048576) + 'MB）— ' + (info.body||'').slice(0,80);
         updateBtn.textContent = '⬇ 下载安装';
         updateBtn.onclick = async function() {
           updateBtn.textContent = '下载中...';
@@ -272,6 +281,9 @@ window.WB = window.WB || {};
     boardEl.addEventListener('dragleave', function(e) {
       var cards = e.target.closest('.cards');
       if (!cards) return;
+      // 仅当鼠标真正离开 cards 容器时才移除高亮，避免在子元素间移动时闪烁
+      var related = e.relatedTarget;
+      if (related && cards.contains(related)) return;
       cards.classList.remove('drag-over');
       cards.querySelectorAll('.insert-before').forEach(function(el) { el.classList.remove('insert-before'); });
     });

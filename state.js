@@ -25,6 +25,7 @@ window.WB = window.WB || {};
     aiSettings:    { ...WB.DEFAULT_AI },
     autoStart:     false,
     weekMode:      5,
+    zoomFactor:    1.0,
     chatHistory:   [],
     reportTemplate: ''
   };

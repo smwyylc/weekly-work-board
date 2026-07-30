@@ -29,7 +29,13 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
-  mainWindow.webContents.setZoomFactor(1.1);
+
+  // 从 localStorage 读取缩放比例
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.executeJavaScript(
+      `var z=JSON.parse(localStorage.getItem('ww_cfg')||'{}').zoomFactor;if(z)document.documentElement.style.zoom=z`
+    ).catch(() => {});
+  });
 
   // 关闭时最小化到托盘，不退出
   mainWindow.on('close', (e) => {
@@ -226,6 +232,13 @@ ipcMain.handle('open-url', (event, url) => {
   require('electron').shell.openExternal(url);
 });
 
+// 界面缩放
+ipcMain.handle('set-zoom', (event, factor) => {
+  if (mainWindow) mainWindow.webContents.executeJavaScript(
+    `document.documentElement.style.zoom=${parseFloat(factor) || 1.0}`
+  ).catch(() => {});
+});
+
 // 检查更新：从 GitHub Releases 拉取最新安装包
 ipcMain.handle('check-update', async () => {
   try {
@@ -267,10 +280,25 @@ ipcMain.handle('download-update', async (event, url) => {
   }
 });
 
-ipcMain.handle('install-update', (event, path) => {
+ipcMain.handle('install-update', (event, p) => {
   try {
+    // 校验路径：必须存在、以 .exe 结尾、位于系统临时目录内，防止恶意路径被执行
+    if (!p || typeof p !== 'string' || !p.toLowerCase().endsWith('.exe')) {
+      return { ok: false, error: '无效的安装包路径' };
+    }
+    const os = require('os');
+    const path = require('path');
+    const fs = require('fs');
+    const tmpDir = os.tmpdir();
+    const resolved = path.resolve(p);
+    if (!resolved.toLowerCase().startsWith(tmpDir.toLowerCase())) {
+      return { ok: false, error: '安装包不在允许的临时目录内' };
+    }
+    if (!fs.existsSync(resolved)) {
+      return { ok: false, error: '安装包文件不存在' };
+    }
     // 使用 execFile 避免 shell 注入：path 作为独立参数传入，不会被解析为命令
-    require('child_process').execFile('cmd', ['/c', 'start', '""', path]);
+    require('child_process').execFile('cmd', ['/c', 'start', '""', resolved]);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };

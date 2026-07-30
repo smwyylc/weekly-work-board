@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   installUpdate: (path) => ipcRenderer.invoke('install-update', path),
   // 退出应用
   quitApp: () => ipcRenderer.invoke('quit-app'),
+  // 界面缩放
+  setZoom: (factor) => ipcRenderer.invoke('set-zoom', factor),
   // 打开外部链接
   openURL: (url) => ipcRenderer.invoke('open-url', url),
   // 流式输出

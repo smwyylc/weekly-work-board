@@ -14,6 +14,8 @@ window.WB = window.WB || {};
     };
     var priOrder = {urgent:0, normal:1, low:2};
     var sortTasks = function(a, b) {
+      if (a.status === 'done' && b.status !== 'done') return 1;
+      if (a.status !== 'done' && b.status === 'done') return -1;
       var ao = a.order || a.createdAt || 0, bo = b.order || b.createdAt || 0;
       if (ao !== bo) return ao - bo;
       var pa = priOrder[a.priority] || 1, pb = priOrder[b.priority] || 1;
@@ -240,8 +242,7 @@ window.WB = window.WB || {};
   }
 
   WB.closeTaskModal = function() {
-    var content = document.getElementById('fContent').value.trim();
-    if (content) WB.saveTaskData();
+    // 仅关闭弹窗，不自动保存（保存由 saveTask 按钮显式触发）
     document.getElementById('taskOverlay').classList.remove('show');
   };
 
@@ -342,7 +343,7 @@ window.WB = window.WB || {};
         t.status = 'done';
         changed = true;
       }
-      if (t.status === 'done' && !t._nextCreated) {
+      if (t.status === 'done') {
         var origRepeat = t.repeat;
         var created = false;
         var repeatRules = origRepeat.split(',').map(function(s){return s.trim();}).filter(Boolean);
@@ -379,7 +380,6 @@ window.WB = window.WB || {};
           created = true;
         }
         if (created) t.repeat = null;
-        t._nextCreated = true;
       }
     });
     if (changed) WB.save();
