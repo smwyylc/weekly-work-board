@@ -8,10 +8,10 @@ window.WB = window.WB || {};
     {k:'thu', n:'周四'}, {k:'fri', n:'周五'}, {k:'sat', n:'周六'}, {k:'sun', n:'周日'}
   ];
   WB.STATUS = {
-    todo:   {n:'待开始', c:'st-todo'},
-    doing:  {n:'进行中', c:'st-doing'},
-    done:   {n:'已完成', c:'st-done'},
-    blocked:{n:'阻塞',   c:'st-blocked'}
+    todo:   {n:'待开始'},
+    doing:  {n:'进行中'},
+    done:   {n:'已完成'},
+    blocked:{n:'阻塞'}
   };
   WB.STATUS_ORDER = ['todo','doing','done','blocked'];
   WB.DEFAULT_AI = {base:'https://opencode.ai/zen/v1', key:'', model:'deepseek-v4-flash-free'};
@@ -26,6 +26,8 @@ window.WB = window.WB || {};
     autoStart:     false,
     weekMode:      5,
     zoomFactor:    1.0,
+    aiWidth:       360,
+    theme:         'emerald',
     chatHistory:   [],
     reportTemplate: ''
   };
@@ -35,7 +37,13 @@ window.WB = window.WB || {};
   WB._redoStack = [];
   WB._toolTags = [];
 
-  // ============ 工具函数 ============
+  // ---- 工具函数 ----
+  // 应用外观主题（body[data-theme]，配合 index.html 中的主题变量集）
+  WB.applyTheme = function(t) {
+    var themes = ['emerald', 'sky', 'lingdong'];
+    document.body.setAttribute('data-theme', themes.indexOf(t) >= 0 ? t : 'emerald');
+  };
+
   WB.getDays = function() {
     var w = WB.state.weekMode;
     return w === 7 ? WB.DAYS_7 : WB.DAYS_7.slice(0,5);
@@ -104,17 +112,34 @@ window.WB = window.WB || {};
   };
 
   // ============ 撤销 / 重做 ============
+  // 快照同时记录 tasks 与当前查看周，撤销跨周操作后视图能一起恢复
   WB.saveSnapshot = function() {
-    WB._undoStack.push(JSON.parse(JSON.stringify(WB.state.tasks)));
+    WB._undoStack.push({
+      tasks: JSON.parse(JSON.stringify(WB.state.tasks)),
+      viewWeekStart: WB.state.viewWeekStart ? new Date(WB.state.viewWeekStart.getTime()) : null
+    });
     if (WB._undoStack.length > 20) WB._undoStack.shift();
     WB._redoStack = [];
+  };
+
+  WB._snapCurrent = function() {
+    return {
+      tasks: JSON.parse(JSON.stringify(WB.state.tasks)),
+      viewWeekStart: WB.state.viewWeekStart ? new Date(WB.state.viewWeekStart.getTime()) : null
+    };
+  };
+
+  WB._restoreSnapshot = function(snap) {
+    if (!snap) return;
+    WB.state.tasks = snap.tasks;
+    if (snap.viewWeekStart) WB.state.viewWeekStart = snap.viewWeekStart;
   };
 
   WB.undo = function() {
     var prev = WB._undoStack.pop();
     if (prev) {
-      WB._redoStack.push(JSON.parse(JSON.stringify(WB.state.tasks)));
-      WB.state.tasks = prev;
+      WB._redoStack.push(WB._snapCurrent());
+      WB._restoreSnapshot(prev);
       WB.save();
       WB.render();
       if (WB.pushSysMsg) WB.pushSysMsg('↩️ 已撤销');
@@ -126,8 +151,8 @@ window.WB = window.WB || {};
   WB.redo = function() {
     var next = WB._redoStack.pop();
     if (next) {
-      WB._undoStack.push(JSON.parse(JSON.stringify(WB.state.tasks)));
-      WB.state.tasks = next;
+      WB._undoStack.push(WB._snapCurrent());
+      WB._restoreSnapshot(next);
       WB.save();
       WB.render();
       if (WB.pushSysMsg) WB.pushSysMsg('↪️ 已重做');

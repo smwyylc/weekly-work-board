@@ -27,6 +27,7 @@ window.WB = window.WB || {};
       WB.state.weekMode = cfg.weekMode || 5;
       WB.state.aiWidth = cfg.aiWidth || 360;
       WB.state.zoomFactor = cfg.zoomFactor || 1.0;
+      WB.state.theme = cfg.theme || 'emerald';
     } catch(e) { WB.state.autoStart = false; WB.state.weekMode = 5; WB.state.aiWidth = 360; WB.state.zoomFactor = 1.0; }
 
     try {
@@ -63,7 +64,8 @@ window.WB = window.WB || {};
       autoStart: WB.state.autoStart,
       weekMode: WB.state.weekMode,
       aiWidth: WB.state.aiWidth,
-      zoomFactor: WB.state.zoomFactor
+      zoomFactor: WB.state.zoomFactor,
+      theme: WB.state.theme
     }));
 
     localStorage.setItem('ww_chat', JSON.stringify(WB.state.chatHistory.slice(-30)));

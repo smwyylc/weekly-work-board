@@ -17,6 +17,7 @@ window.WB = window.WB || {};
     WB.updateAISummary();
     document.getElementById('sAutostart').checked = WB.state.autoStart;
     document.getElementById('sWeekmode').value = String(WB.state.weekMode);
+    document.getElementById('sTheme').value = WB.state.theme || 'emerald';
     var zoom = WB.state.zoomFactor || 1.0;
     document.getElementById('sZoom').value = zoom;
     document.getElementById('sZoomVal').textContent = Math.round(zoom * 100) + '%';
@@ -78,6 +79,11 @@ window.WB = window.WB || {};
     var newZoom = parseFloat(document.getElementById('sZoom').value) || 1.0;
     WB.state.zoomFactor = newZoom;
     document.documentElement.style.zoom = newZoom;
+    var newTheme = document.getElementById('sTheme').value;
+    if (newTheme !== WB.state.theme) {
+      WB.state.theme = newTheme;
+      WB.applyTheme(newTheme);
+    }
     WB.save();
     WB.closeSettings();
     if (WB.pushSysMsg) WB.pushSysMsg('✅ 设置已保存 — ' + (preset === 'opencode' ? 'opencode.ai（免费）' : WB.state.aiSettings.base));
@@ -152,8 +158,9 @@ window.WB = window.WB || {};
     });
     // 13) 链接
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m, text, url) {
-      var safe = url.startsWith('http://') || url.startsWith('https://');
-      return safe ? '<a href="' + url + '" target="_blank" rel="noopener">' + text + '</a>' : text + '（' + url + '）';
+      var safe = false;
+      try { var u = new URL(url); safe = (u.protocol === 'http:' || u.protocol === 'https:'); } catch(e) {}
+      return safe ? '<a href="' + url.replace(/"/g,'&quot;') + '" target="_blank" rel="noopener">' + text + '</a>' : text + '（' + url + '）';
     });
     // 14) 换行 — 先清理标签前后多余换行，避免空行
     s = s.replace(/\n+(<[\/]?(?:h[1-4]|table|ul|ol|li|pre)[^>]*>)/g, '$1');
@@ -184,9 +191,27 @@ window.WB = window.WB || {};
     d.innerHTML = WB.mdToHtml(text);
     c.appendChild(d);
     c.scrollTop = c.scrollHeight;
+    // 双写:全局 toast,保证 AI 面板折叠时反馈仍然可见
+    WB.showToast(text);
+  };
+
+  // 全局系统 toast(与 AI 面板解耦,顶部居中,自动消失)
+  WB.showToast = function(text) {
+    var el = document.getElementById('sys-toast');
+    if (!el) return;
+    el.innerHTML = WB.mdToHtml(text);
+    el.classList.add('show');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(function() {
+      el.classList.remove('show');
+    }, 2600);
   };
 
   WB.clearChat = function() {
+    if (WB._aiBusy) {
+      if (WB.pushSysMsg) WB.pushSysMsg('⚠️ AI 回复中，请等待完成后或稍后再新建会话');
+      return;
+    }
     WB.state.chatHistory = [];
     document.getElementById('aiBody').innerHTML = '';
     WB.pushSysMsg('已新建对话');
@@ -223,7 +248,8 @@ window.WB = window.WB || {};
         messages: payload.messages,
         temperature: 0.2,
         ...(payload.tools ? {tools: payload.tools} : {})
-      })
+      }),
+      signal: AbortSignal.timeout(60000)
     });
     var data = await resp.json();
     if (!resp.ok) throw new Error((data.error && data.error.message) || 'API 请求失败');
@@ -302,6 +328,11 @@ window.WB = window.WB || {};
     var el = document.getElementById('aiInput');
     var text = el.value.trim();
     if (!text) return;
+    if (WB._aiBusy) {
+      if (WB.pushSysMsg) WB.pushSysMsg('⚠️ 上一条回复还在进行中');
+      return;
+    }
+    WB._aiBusy = true;
     el.value = '';
     WB.pushMsg('user', text);
     WB.state.chatHistory.push({role:'user', content:text});
@@ -369,25 +400,33 @@ window.WB = window.WB || {};
         if (finished) return;
         finished = true;
         cleanup();
-        var reply = r.fullContent || rawContent || '(无回复)';
-        if (!aiBubble.parentNode) { document.getElementById('aiBody').appendChild(aiBubble); }
-        aiBubble.innerHTML = WB.mdToHtml(reply);
-        WB.state.chatHistory.push({role:'assistant', content:reply});
-        WB.save();
-        var ops = WB.extractOpsRaw(reply);
-        if (ops.length) {
-          var summaries = WB.execOpsWithDetail(ops);
-          if (summaries && summaries.length) {
-            var note = document.createElement('div');
-            note.className = 'ops-note';
-            note.innerHTML = summaries.map(function(s){return WB.esc(s);}).join('<br>');
-            var chat = document.getElementById('aiBody');
-            chat.insertBefore(note, aiBubble.nextSibling);
-            // 操作结果回写 chatHistory，让 AI 下一轮知道实际执行情况
-            WB.state.chatHistory.push({role:'system', content:'[系统] 已执行：' + summaries.join('；')});
+        try {
+          var reply = r.fullContent || rawContent || '(无回复)';
+          if (!aiBubble.parentNode) { document.getElementById('aiBody').appendChild(aiBubble); }
+          aiBubble.innerHTML = WB.mdToHtml(reply);
+          WB.state.chatHistory.push({role:'assistant', content:reply});
+          WB.save();
+          var ops = WB.extractOpsRaw(reply);
+          if (ops.length) {
+            var summaries = WB.execOpsWithDetail(ops);
+            if (summaries && summaries.length) {
+              var note = document.createElement('div');
+              note.className = 'ops-note';
+              note.innerHTML = summaries.map(function(s){return WB.esc(s);}).join('<br>');
+              var chat = document.getElementById('aiBody');
+              chat.insertBefore(note, aiBubble.nextSibling);
+              // 操作结果回写 chatHistory，让 AI 下一轮知道实际执行情况
+              WB.state.chatHistory.push({role:'system', content:'[系统] 已执行：' + summaries.join('；')});
+            }
           }
+        } catch (e2) {
+          console.error('AI 回复处理失败', e2);
+          if (WB.pushSysMsg) WB.pushSysMsg('⚠️ AI 回复处理失败');
+        } finally {
+          // 锁与按钮恢复放在 finally，确保渲染/执行异常也不会卡死输入
+          WB._aiBusy = false;
+          sendBtn.disabled = false;
         }
-        sendBtn.disabled = false;
       });
       window.electronAPI.onAIError(function(e) {
         if (finished) return;
@@ -395,6 +434,7 @@ window.WB = window.WB || {};
         cleanup();
         
         WB.pushMsg('bot', '⚠️ ' + (e||'流式请求失败') + (/invalid api key|401|unauthorized|api.?key/i.test(e||'') ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
+        WB._aiBusy = false;
         sendBtn.disabled = false;
       });
       try {
@@ -405,6 +445,7 @@ window.WB = window.WB || {};
           cleanup();
           
           WB.pushMsg('bot', '⚠️ ' + (e.message||e) + (/invalid api key|401|unauthorized|api.?key/i.test(e.message||'') ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
+          WB._aiBusy = false;
           sendBtn.disabled = false;
         }
       }
@@ -437,6 +478,7 @@ window.WB = window.WB || {};
       
       WB.pushMsg('bot', '⚠️ ' + err.message + (/invalid api key|401|unauthorized|api.?key/i.test(err.message) ? ' —— 请点击 ⚙ 填入正确的 API Key' : ''));
     } finally {
+      WB._aiBusy = false;
       sendBtn.disabled = false;
     }
   };

@@ -43,12 +43,19 @@ window.WB = window.WB || {};
     board.innerHTML = html;
     board.style.gridTemplateColumns = 'repeat(' + (days.length+1) + ',minmax(0,1fr))';
 
+    var prevIds = board._renderedIds || null;
     if (board._rendered) {
-      board.querySelectorAll('.col, .card').forEach(function(el) { el.style.animation = 'none'; });
+      // 旧卡片抑制动画，避免整板重放；新卡片保留 rise，让"保存成功"有视觉落点
+      board.querySelectorAll('.col').forEach(function(el) { el.style.animation = 'none'; });
+      board.querySelectorAll('.card').forEach(function(el) {
+        if (prevIds && prevIds.has(el.dataset.id)) el.style.animation = 'none';
+        else el.style.animationDelay = '0ms';
+      });
     } else {
       board.querySelectorAll('.col').forEach(function(el, i) { el.style.animationDelay = (i*55) + 'ms'; });
       board._rendered = true;
     }
+    board._renderedIds = new Set(Array.prototype.map.call(board.querySelectorAll('.card'), function(el) { return el.dataset.id; }));
 
     // 今日日程
     var todayBar = document.getElementById('todayBar');
@@ -143,6 +150,33 @@ window.WB = window.WB || {};
     colTasks.forEach(function(x, i) { x.order = (i+1)*10; });
     WB.save();
     WB.render();
+    WB._animateCardFrom(id);
+  };
+
+  // 拖拽落点后的 FLIP 过渡：从拖拽起点平滑迁移到新位置，消除"突变式"重绘
+  WB._animateCardFrom = function(id) {
+    var from = WB._dragFrom;
+    if (!from || from.id !== id) return;
+    WB._dragFrom = null;
+    var el = document.querySelector('.card[data-id="' + id + '"]');
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    var dx = from.rect.left - r.left;
+    var dy = from.rect.top - r.top;
+    if (dx === 0 && dy === 0) return;
+    el.style.transition = 'none';
+    el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    el.style.willChange = 'transform';
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        el.style.transition = 'transform .22s cubic-bezier(.2,.7,.2,1)';
+        el.style.transform = '';
+        setTimeout(function() {
+          el.style.willChange = '';
+          el.style.transition = '';
+        }, 260);
+      });
+    });
   };
 
   WB.cycleStatus = function(id) {
@@ -181,6 +215,12 @@ window.WB = window.WB || {};
 
   // ==================== 任务弹窗 ====================
   WB.openTaskModal = function(day, id) {
+    // 弹窗已开且表单有未保存修改时，先轻确认，避免静默重建表单丢数据（Ctrl+N / 顶栏按钮 / 再点添加）
+    var taskOv = document.getElementById('taskOverlay');
+    if (taskOv && taskOv.classList.contains('show') && WB._formDirty()) {
+      document.getElementById('discardOverlay').classList.add('show');
+      return;
+    }
     // 根据 weekMode 动态设置所属日选项
     var days = WB.getDays();
     var dayKeys = days.map(function(d) { return d.k; });
@@ -214,8 +254,30 @@ window.WB = window.WB || {};
     } else {
       WB._fillForm(day || '');
     }
+    WB._formSnapshot = WB._captureForm();
     document.getElementById('taskOverlay').classList.add('show');
     setTimeout(function() { document.getElementById('fContent').focus(); }, 80);
+  };
+
+  // 采集表单当前值，用于"未保存变更"检测
+  WB._captureForm = function() {
+    var rep = [];
+    document.querySelectorAll('#fRepeatGroup input[type=checkbox]:checked').forEach(function(cb) { rep.push(cb.value); });
+    return JSON.stringify({
+      content: document.getElementById('fContent').value,
+      day: document.getElementById('fDay').value,
+      status: document.getElementById('fStatus').value,
+      people: document.getElementById('fPeople').value,
+      remind: document.getElementById('fRemind').value,
+      notes: document.getElementById('fNotes').value,
+      priority: document.getElementById('fPriority').value,
+      repeat: rep.slice().sort().join(',')
+    });
+  };
+
+  WB._formDirty = function() {
+    if (!WB._formSnapshot) return false;
+    return WB._captureForm() !== WB._formSnapshot;
   };
 
   WB._fillForm = function(day) {
@@ -241,15 +303,22 @@ window.WB = window.WB || {};
     return vals.join(',');
   }
 
-  WB.closeTaskModal = function() {
-    // 仅关闭弹窗，不自动保存（保存由 saveTask 按钮显式触发）
+  WB.closeTaskModal = function(force) {
+    // 有未保存变更时先轻确认，防止静默丢数据（保存/删除走 force 直接关闭）
+    if (!force && WB._formDirty()) {
+      document.getElementById('discardOverlay').classList.add('show');
+      return;
+    }
     document.getElementById('taskOverlay').classList.remove('show');
+    WB._formSnapshot = null;
   };
 
   WB.saveTaskData = function() {
-    WB.saveSnapshot();
     var content = document.getElementById('fContent').value.trim();
-    if (!content) return;
+    if (!content) {
+      if (WB.pushSysMsg) WB.pushSysMsg('⚠️ 任务内容不能为空');
+      return false;
+    }
     var day = document.getElementById('fDay').value || null;
     var status = document.getElementById('fStatus').value;
     var people = document.getElementById('fPeople').value.split(/[,，]/).map(function(s) { return s.trim(); }).filter(Boolean);
@@ -263,8 +332,9 @@ window.WB = window.WB || {};
         // 残留列中不允许标记为已完成
         if (!day && status === 'done') {
           if (WB.pushSysMsg) WB.pushSysMsg('⚠️ 残留列中的任务不能标记为已完成，请先将其排入具体日期');
-          return;
+          return false;
         }
+        WB.saveSnapshot(); // 校验通过，真正修改前才记录撤销快照
         t.content = content; t.day = day; t.status = status; t.people = people;
         t.remindAt = remindAt; t.repeat = repeat; t.notes = notes; t.priority = priority;
         if (day) t.weekKey = WB.weekKey(WB.state.viewWeekStart);
@@ -273,8 +343,9 @@ window.WB = window.WB || {};
       // 新增任务时，残留列也不允许直接创建为已完成
       if (!day && status === 'done') {
         if (WB.pushSysMsg) WB.pushSysMsg('⚠️ 残留列中的任务不能标记为已完成，请先将其排入具体日期');
-        return;
+        return false;
       }
+      WB.saveSnapshot(); // 校验通过，真正修改前才记录撤销快照
       WB.state.tasks.push({
         id: WB.uid(), content: content, day: day, status: status, people: people,
         remindAt: remindAt, repeat: repeat, notes: notes, priority: priority,
@@ -283,23 +354,29 @@ window.WB = window.WB || {};
     }
     WB.save();
     WB.render();
+    return true;
   };
 
-  WB.saveTask = function() { WB.saveTaskData(); WB.closeTaskModal(); };
+  WB.saveTask = function() {
+    if (WB.saveTaskData()) WB.closeTaskModal(true);
+  };
 
   WB.deleteTask = function(id) {
     var t = WB.state.tasks.find(function(x) { return x.id === id; });
-    if (!t) return;
-    if (!confirm('确定删除该任务？')) return;
+    if (!t) return false;
+    if (!confirm('确定删除该任务？')) return false;
     WB.saveSnapshot();
     WB.state.tasks = WB.state.tasks.filter(function(x) { return x.id !== id; });
     WB.save();
     WB.render();
+    return true;
   };
 
   WB.deleteCurrent = function() {
-    if (WB.state.editingId) WB.deleteTask(WB.state.editingId);
-    WB.closeTaskModal();
+    if (WB.state.editingId) {
+      if (!WB.deleteTask(WB.state.editingId)) return; // 取消删除则保持弹窗，不丢未保存修改
+    }
+    WB.closeTaskModal(true);
   };
 
   // ==================== 任务提醒 & 例行检查 ====================
@@ -334,6 +411,7 @@ window.WB = window.WB || {};
     var todayKey = ['sun','mon','tue','wed','thu','fri','sat'][today.getDay()];
     var dayMap = {mon:1, tue:2, wed:3, thu:4, fri:5, sat:6, sun:7};
     var changed = false;
+    var autoDone = [];
     WB.state.tasks.forEach(function(t) {
       if (!t.repeat || t.day === null) return;
       if (t.weekKey !== wk) return;
@@ -341,6 +419,7 @@ window.WB = window.WB || {};
       var todayIdx = dayMap[todayKey] || 0;
       if (t.status !== 'done' && todayIdx > taskDayIdx && t.day !== todayKey) {
         t.status = 'done';
+        autoDone.push(t.content);
         changed = true;
       }
       if (t.status === 'done') {
@@ -364,6 +443,10 @@ window.WB = window.WB || {};
             var targetDay = dayMap[rule];
             var d = (targetDay - today.getDay() + 7) % 7;
             if (d === 0) d = 7;
+            // 例行任务被提前完成（任务日尚未到来，rule 即该任务原本所在的重复日）时，
+            // 本周该重复日的任务就是当前这条记录本身，下一次应出现在下周同一天，
+            // 否则会在同一天重复生成一个相同任务。
+            if (rule === t.day && targetDay > today.getDay()) d = 7;
             var nextWeek = new Date(today);
             nextWeek.setDate(nextWeek.getDate() + d);
             if (!bestDate || nextWeek < bestDate) { bestDate = new Date(nextWeek); bestDay = rule; }
@@ -383,6 +466,10 @@ window.WB = window.WB || {};
       }
     });
     if (changed) WB.save();
+    // 一次性提示被自动完成的例行任务，避免用户误以为已亲手完成（只发生在“刚被结转”的那一分钟，不会重复）
+    if (autoDone.length) {
+      if (WB.pushSysMsg) WB.pushSysMsg('⏭ 例行任务已到期自动完成：' + autoDone.slice(0,3).join('、') + (autoDone.length > 3 ? ' 等 ' + autoDone.length + ' 项' : ''));
+    }
   };
 
   WB.showReminderToast = function(content, time) {

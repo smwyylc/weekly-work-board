@@ -56,6 +56,15 @@ window.WB = window.WB || {};
     });
     document.querySelector('[data-action="save-task"]').addEventListener('click', WB.saveTask);
 
+    // 未保存变更轻确认（放弃编辑）
+    document.getElementById('discardCancel').addEventListener('click', function() {
+      document.getElementById('discardOverlay').classList.remove('show');
+    });
+    document.getElementById('discardConfirm').addEventListener('click', function() {
+      document.getElementById('discardOverlay').classList.remove('show');
+      WB.closeTaskModal(true);
+    });
+
     // 更多选项折叠
     var toggleBtn = document.getElementById('taskToggleExtra');
     var extra = document.getElementById('taskExtra');
@@ -302,9 +311,12 @@ window.WB = window.WB || {};
       var card = e.target.closest('.card');
       if (!card) return;
       e.dataTransfer.setData('text/plain', card.dataset.id);
+      // 记录拖拽起点，供 drop 后 FLIP 平滑过渡
+      WB._dragFrom = { id: card.dataset.id, rect: card.getBoundingClientRect() };
       card.classList.add('dragging');
     });
     boardEl.addEventListener('dragend', function() {
+      WB._dragFrom = null;
       document.querySelectorAll('.dragging,.placeholder').forEach(function(el) {
         el.classList.remove('dragging');
         if (el.classList.contains('placeholder')) el.remove();
@@ -323,6 +335,8 @@ window.WB = window.WB || {};
     // 全局快捷键
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
+        var discOv = document.getElementById('discardOverlay');
+        if (discOv && discOv.classList.contains('show')) { discOv.classList.remove('show'); return; }
         var taskOv = document.getElementById('taskOverlay');
         if (taskOv && taskOv.classList.contains('show')) { WB.closeTaskModal(); return; }
         document.querySelectorAll('.overlay.show:not(#taskOverlay)').forEach(function(o) { o.classList.remove('show'); });
@@ -380,6 +394,7 @@ window.WB = window.WB || {};
 
     WB.processRecurring();
     WB.bindEvents();
+    WB.applyTheme(WB.state.theme);
     WB.render();
     WB.initReminder();
 

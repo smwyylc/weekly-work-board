@@ -30,6 +30,12 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
+  // 拒绝渲染进程打开新窗口：外部链接一律走系统浏览器，避免新窗口继承 preload 暴露完整 electronAPI
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) require('electron').shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
   // 从 localStorage 读取缩放比例
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.executeJavaScript(
@@ -107,9 +113,18 @@ ipcMain.handle('decrypt-key', (event, hexData) => {
   }
 });
 
+// 校验接口地址：仅允许 http/https，防止 file:// 等协议或畸形 URL 被误用（SSRF 基础防线）
+function sanitizeBase(raw) {
+  const b = String(raw || '').trim().replace(/\/+$/, '');
+  let u;
+  try { u = new URL(b); } catch (e) { throw new Error('无效的接口地址'); }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('接口地址仅支持 http/https');
+  return b;
+}
+
 // AI 调用：在 Node 主进程发起 HTTP 请求，彻底规避浏览器 file:// 的跨域(CORS)限制
 ipcMain.handle('call-ai', async (event, payload) => {
-  const base = (payload.base || 'https://opencode.ai/zen/v1').replace(/\/$/, '');
+  const base = sanitizeBase(payload.base || 'https://opencode.ai/zen/v1');
   const url = base + '/chat/completions';
   // opencode.ai 等接口无需 API Key；仅当 key 非空时才带 Authorization 头
   const headers = { 'Content-Type': 'application/json' };
@@ -125,7 +140,8 @@ ipcMain.handle('call-ai', async (event, payload) => {
       temperature: 0.2,
       thinking: {type: 'disabled'},
       ...(payload.tools ? { tools: payload.tools } : {})
-    })
+    }),
+    signal: AbortSignal.timeout(60000)
   });
   const data = await resp.json();
   if (!resp.ok) {
@@ -137,7 +153,7 @@ ipcMain.handle('call-ai', async (event, payload) => {
 // AI 流式调用：SSE 逐块推送
 ipcMain.handle('call-ai-stream', async (event, payload) => {
   try {
-    const base = (payload.base || 'https://opencode.ai/zen/v1').replace(/\/$/, '');
+    const base = sanitizeBase(payload.base || 'https://opencode.ai/zen/v1');
     const url = base + '/chat/completions';
     const headers = { 'Content-Type': 'application/json' };
     if (payload.key && String(payload.key).trim()) {
@@ -153,7 +169,8 @@ ipcMain.handle('call-ai-stream', async (event, payload) => {
         stream: true,
         thinking: {type: 'disabled'},
         ...(payload.tools ? { tools: payload.tools } : {})
-      })
+      }),
+      signal: AbortSignal.timeout(120000)
     });
     if (!resp.ok) {
       const data = await resp.json().catch(() => ({}));
@@ -227,9 +244,13 @@ ipcMain.handle('quit-app', () => {
   app.quit();
 });
 
-// 打开外部链接
+// 打开外部链接：仅允许 http/https，避免被用于拉起任意协议处理器
 ipcMain.handle('open-url', (event, url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    return { ok: false, error: '仅支持 http/https 链接' };
+  }
   require('electron').shell.openExternal(url);
+  return { ok: true };
 });
 
 // 界面缩放
@@ -268,7 +289,13 @@ ipcMain.handle('check-update', async () => {
 
 ipcMain.handle('download-update', async (event, url) => {
   try {
-    const resp = await fetch(url);
+    // 仅允许下载 GitHub Releases 的安装包，防止任意 URL 被用于 SSRF 或污染安装包文件
+    let u;
+    try { u = new URL(String(url || '')); } catch (e) { return { ok: false, error: '无效的下载地址' }; }
+    if (u.protocol !== 'https:' || (u.hostname !== 'github.com' && u.hostname !== 'objects.githubusercontent.com')) {
+      return { ok: false, error: '仅允许从 GitHub 下载更新' };
+    }
+    const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
     if (!resp.ok) throw new Error('下载失败');
     const buffer = Buffer.from(await resp.arrayBuffer());
     const tmpPath = require('path').join(require('os').tmpdir(), 'WeeklyWorkBoard_Setup.exe');
@@ -282,23 +309,24 @@ ipcMain.handle('download-update', async (event, url) => {
 
 ipcMain.handle('install-update', (event, p) => {
   try {
-    // 校验路径：必须存在、以 .exe 结尾、位于系统临时目录内，防止恶意路径被执行
+    // 校验路径：必须与 download-update 写入的固定文件名完全一致，防止任意路径被拉起执行
     if (!p || typeof p !== 'string' || !p.toLowerCase().endsWith('.exe')) {
       return { ok: false, error: '无效的安装包路径' };
     }
     const os = require('os');
     const path = require('path');
     const fs = require('fs');
-    const tmpDir = os.tmpdir();
+    const expected = path.join(os.tmpdir(), 'WeeklyWorkBoard_Setup.exe');
     const resolved = path.resolve(p);
-    if (!resolved.toLowerCase().startsWith(tmpDir.toLowerCase())) {
-      return { ok: false, error: '安装包不在允许的临时目录内' };
+    if (resolved.toLowerCase() !== expected.toLowerCase()) {
+      return { ok: false, error: '安装包不在允许的位置或文件名不匹配' };
     }
     if (!fs.existsSync(resolved)) {
       return { ok: false, error: '安装包文件不存在' };
     }
-    // 使用 execFile 避免 shell 注入：path 作为独立参数传入，不会被解析为命令
-    require('child_process').execFile('cmd', ['/c', 'start', '""', resolved]);
+    // 直接 spawn 安装器（不经 cmd/shell），彻底杜绝参数解析与命令注入
+    const child = require('child_process').spawn(resolved, [], { detached: true, stdio: 'ignore' });
+    child.unref();
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };
